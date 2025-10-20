@@ -1,4 +1,9 @@
 {
-"temperature": 76,
-"temperature_scales": ["Farenheit", "Celsius"]
+  "ph": 6.5,
+  "tds": 500,
+  "temperature": 78.76,
+  "temperature_scales": [
+    "Farenheit",
+    "Celsius"
+  ]
 }
