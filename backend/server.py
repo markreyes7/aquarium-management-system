@@ -24,11 +24,11 @@ def get_items():
 
 @app.route('/data',methods=['GET'])
 def get_data():
-    return filework.open_file('backend/aquariumdata.json')
+    return filework.open_file('aquariumdata.json')
 
 @app.route('/temp',methods=['GET'])
 def get_temp():
-    data = filework.open_file('backend/aquariumdata.json')
+    data = filework.open_file('aquariumdata.json')
     print(data["temperature"])
     return jsonify({"temperature": data["temperature"]})
 
@@ -42,11 +42,11 @@ def update_temp():
     
    
     # Read existing data
-    data = filework.open_file('backend/aquariumdata.json')
+    data = filework.open_file('aquariumdata.json')
     data["temperature"] = new_temp
 
     # Save back
-    filework.write_file('backend/aquariumdata.json', data)
+    filework.write_file('aquariumdata.json', data)
 
     return jsonify({"ok": True, "temperature": new_temp})
 

@@ -1,28 +1,35 @@
 import { useState, useEffect } from "react";
-import MiniNav from "./components/MiniNav"
 import axios from "axios";
 
 export default function App() {
   const [temp, setTemp] = useState(null);
 
-  const [currentSection, setCurrentSection] = useState("temp");
-
-  const handleNavChange = (section) => {
-    console.log("Selected:", section);
-    setCurrentSection(section);
-  };
 
   useEffect(() => {
-    axios.get("/temp")
+    const fetchData = () =>{
+      axios.get("/temp")
       .then(res => setTemp(res.data))
-      .catch(err => console.error(err));
+      .catch(err => console.log("Error getting temp", err));
+    };
+
+    fetchData();
+
+    const tempFetch = setInterval(fetchData, 5000);
+
+    return () => clearInterval(tempFetch);
+ 
+    
   }, []);
 
-  useEffect(() => {
-  axios.get("/temp").then(res => {
-    console.log("Backend response:", res.data);
-  });
-}, []);
+
+  // useEffect(() => {
+  //   axios.get("/temp")
+  //     .then(res => setTemp(res.data))
+  //     .catch(err => console.error(err));
+  // }, []);
+
+
+
 
   
 
