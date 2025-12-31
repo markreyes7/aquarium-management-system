@@ -30,4 +30,4 @@ while True:
     log_temperature(temp)
     requests.post("http://127.0.0.1:3001/update/temp", json={"temperature": temp})
     print(f"Sent temp: {temp}")
-    time.sleep(5)
+    time.sleep(15)
