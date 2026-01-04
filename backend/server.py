@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 import filework
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -79,6 +80,28 @@ def toggle_light():
 
     return jsonify({"ok": True, "on": light_on})
 
+@app.route("/update/fertilize", methods=["POST"])
+def update_last_fertilized():
+    """Record the last fertilization time as the current timestamp"""
+    data = filework.open_file("aquariumdata.json")
+
+    fert_time = datetime.utcnow().isoformat() + "Z"
+    data["last_fertilized"] = fert_time
+
+    filework.write_file("aquariumdata.json", data)
+
+    return jsonify({"ok": True, "last_fertilized": fert_time})
+
+@app.route("/update/trimmed", methods=["POST"])
+def update_last_trimmed():
+    """Record the last trimmed date as the current timestamp"""
+    data = filework.open_file("aquariumdata.json")
+    trimmed_time = datetime.utcnow().isoformat() + "Z"
+    data["last_trimmed"] = trimmed_time
+
+    filework.write_file("aquariumdata.json", data)
+
+    return jsonify({"ok": True, "last_trimmed": trimmed_time})
 
 if __name__ == "__main__":
     # Run with: python3 server.py

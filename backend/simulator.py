@@ -10,7 +10,7 @@ def log_temperature(value):
                 data = json.load(f)
                 if not isinstance(data, list):
                     data = []
-        except (json.JSONDecodeError, FileNotFoundError):
+        except (json.JSONDestaecodeError, FileNotFoundError):
             data = []
     else:
         data = []
@@ -24,6 +24,20 @@ def log_temperature(value):
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
 
+
+def fertilize_tank():
+    """Simulate a fertilization event"""
+    try:
+        res = requests.post("http://127.0.0.1:3001/update/fertilize")
+        if res.ok:
+            data = res.json()
+            print(f"✅ Fertilized at {data['last_fertilized']}")
+        else:
+            print(f"❌ Error {res.status_code}: {res.text}")
+    except Exception as e:
+        print("Error sending request:", e)
+
+
 # ---- simulator loop ----
 while True:
     temp = 78 + random.random() * 2
@@ -31,3 +45,4 @@ while True:
     requests.post("http://127.0.0.1:3001/update/temp", json={"temperature": temp})
     print(f"Sent temp: {temp}")
     time.sleep(15)
+    fertilize_tank()

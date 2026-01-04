@@ -1,7 +1,9 @@
 {
+  "last_fertilized": "2026-01-04T04:13:22.156979Z",
+  "last_trimmed": 0,
   "ph": 6.5,
   "tds": 500,
-  "temperature": 79.05391616221101,
+  "temperature": 78.03779685174224,
   "temperature_scales": [
     "Farenheit",
     "Celsius"
