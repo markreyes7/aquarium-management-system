@@ -1,8 +1,8 @@
 from flask import Flask
 from db import close_db
 
-from backend.routes.maintenance import bp as maintenance_bp
-from backend.routes.environment import bp as environment_bp
+from routes.maintenance import bp as maintenance_bp
+from routes.environment import bp as environment_bp
 
 def create_app():
     app = Flask(__name__)
@@ -14,4 +14,4 @@ def create_app():
 
 if __name__== "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=3001, debug=True)
+    app.run(host="0.0.0.0", port=3001, debug=True)    

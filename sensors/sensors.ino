@@ -1,55 +1,53 @@
-#include "secrets.h"
-#include <OneWire.h>
-#include <DallasTemperature.h>
 #include <WiFiS3.h>
+#include <ArduinoHttpClient.h>
+#include "secrets.h"
 
-#define ONE_WIRE_BUS 8  // DS18B20 data pin connected to pin D8
+WiFiSSLClient wifi;
+HttpClient client(wifi, SERVER_ADDRESS, SERVER_PORT);
 
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-
-char serverAddress[] = "192.168.1.55"; // my thinkpad's IP address
-int serverPort = 3001;                 // Flask port
-
-void setup() {
-  Serial.begin(9600);
-  sensors.begin();
-
+// -----------------------------
+// Connect to WiFi (one-time)
+// -----------------------------
+void connectWiFi() {
   Serial.print("Connecting to WiFi...");
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.begin(WIFI_SSID, WIFI_PASS) != WL_CONNECTED) {
     delay(1000);
     Serial.print(".");
   }
-  Serial.println("\nWiFi connected!");
-  Serial.print("Device IP: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("\nConnected!");
+}
+
+void sendTemperature(float tempC) {
+  String payload = "{\"temperature\": " + String(tempC, 2) + "}";
+
+  client.beginRequest();
+  client.post("/environment/temperature");
+  client.sendHeader("Content-Type", "application/json");
+  client.sendHeader("Content-Length", payload.length());
+  client.beginBody();
+  client.print(payload);
+  client.endRequest();
+
+  int statusCode = client.responseStatusCode();
+  String response = client.responseBody();
+
+  Serial.print("HTTP Status: ");
+  Serial.println(statusCode);
+  Serial.print("Response: ");
+  Serial.println(response);
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+
+  connectWiFi();
+
+  
+  sendTemperature(24.7);
 }
 
 void loop() {
-  sensors.requestTemperatures();
-  float tempF = sensors.getTempFByIndex(0);
-  Serial.print("Temp: ");
-  Serial.print(tempF);
-  Serial.println(" °F");
-
-  String postData = "{\"temperature\": " + String(tempF, 2) + "}";
-
-  WiFiClient client;
-  if (client.connect(serverAddress, serverPort)) {
-    client.println("POST /update/temp HTTP/1.1");
-    client.print("Host: ");
-    client.println(serverAddress);
-    client.println("Content-Type: application/json");
-    client.print("Content-Length: ");
-    client.println(postData.length());
-    client.println();
-    client.print(postData);
-    client.stop();
-    Serial.println("Sent to Flask!");
-  } else {
-    Serial.println("Failed to connect to Flask");
-  }
-
-  delay(30000); 
+  // Empty for now — this is a tester
 }
