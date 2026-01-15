@@ -39,3 +39,15 @@ def update_trimmed():
     db.commit()
 
     return jsonify({"ok": True})
+
+@bp.route("/update/topoff", methods=["POST"])
+def update_topoff():
+    db = get_db()
+    db.execute("""
+            UPDATE tank_status
+            SET last_water_topoff = CURRENT_TIMESTAMP
+            where id = 1       
+    """)
+    db.commit()
+
+    return jsonify({"ok": True})    

@@ -15,8 +15,8 @@ def get_temp():
 
     return jsonify({"temperature": row["temperature"] if row else None})
 
-@bp.route("/update/temp", methods=["POST"])
-def update_temp():
+@bp.route("/environment/temperature", methods=["POST"])
+def log_temperature():
     payload = request.get_json(force=True)
     temp = payload.get("temperature")
 
