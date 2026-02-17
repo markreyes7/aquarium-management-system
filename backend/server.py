@@ -7,6 +7,9 @@ from routes.environment import bp as environment_bp
 def create_app():
     app = Flask(__name__)
 
+    # DB connection cleanup
+    app.teardown_appcontext(close_db)
+
     app.register_blueprint(maintenance_bp)
     app.register_blueprint(environment_bp)
 

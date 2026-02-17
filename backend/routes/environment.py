@@ -31,3 +31,20 @@ def log_temperature():
     db.commit()
 
     return jsonify({"ok": True, "temperature": temp})
+
+@bp.route("/environment/temperature/latest", methods=["GET"])
+def latest_temperature():
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT temperature, recorded_at
+        FROM temperature_log
+        ORDER BY recorded_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    if row is None:
+        return jsonify({"ok": True, "latest": None})
+
+    return jsonify({"ok": True, "latest": dict(row)})
