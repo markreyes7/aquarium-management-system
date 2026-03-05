@@ -11,6 +11,20 @@ conn.execute(
     "INSERT OR IGNORE INTO tank_status (id) VALUES (1)"
 )
 
+# Backfill columns for existing databases created before schema changes.
+tank_status_cols = {
+    row[1] for row in conn.execute("PRAGMA table_info(tank_status)").fetchall()
+}
+if "last_trimmed" not in tank_status_cols:
+    conn.execute("ALTER TABLE tank_status ADD COLUMN last_trimmed TIMESTAMP")
+
+maintenance_cols = {
+    row[1] for row in conn.execute("PRAGMA table_info(maintenance_log)").fetchall()
+}
+if "notes" not in maintenance_cols and "note" in maintenance_cols:
+    conn.execute("ALTER TABLE maintenance_log ADD COLUMN notes TEXT")
+    conn.execute("UPDATE maintenance_log SET notes = note WHERE notes IS NULL")
+
 conn.commit()
 conn.close()
 

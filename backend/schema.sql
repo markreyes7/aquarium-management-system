@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS tank_status (
     last_fertilized TIMESTAMP,
     last_water_change TIMESTAMP,
     last_water_topoff TIMESTAMP,
+    last_trimmed TIMESTAMP,
     notes TEXT
 );
 
@@ -34,5 +35,5 @@ CREATE TABLE IF NOT EXISTS maintenance_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
   occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  note TEXT
+  notes TEXT
 );

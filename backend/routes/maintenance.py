@@ -13,7 +13,23 @@ def welcome():
 def get_data():
     db = get_db()
     row = db.execute("SELECT * FROM tank_status WHERE id = 1").fetchone()
-    return jsonify(dict(row) if row else {})
+    data = dict(row) if row else {}
+
+    latest_note_row = db.execute(
+        """
+        SELECT notes
+        FROM maintenance_log
+        WHERE notes IS NOT NULL AND TRIM(notes) <> ''
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    data["latest_maintenance_note"] = (
+        latest_note_row["notes"] if latest_note_row else None
+    )
+
+    return jsonify(data)
 
 
 # ----------------------------
@@ -30,7 +46,7 @@ def list_maintenance():
     db = get_db()
     rows = db.execute(
         """
-        SELECT id, action, occurred_at, note
+        SELECT id, action, occurred_at, notes
         FROM maintenance_log
         ORDER BY occurred_at DESC
         LIMIT ?
@@ -46,11 +62,14 @@ def add_maintenance():
     """
     JSON:
       - action (required) e.g. fertilize, trimmed, topoff, water_change
-      - note (optional)
+      - notes (optional)
     """
     payload = request.get_json(force=True)
     action = payload.get("action")
-    note = payload.get("note")
+    notes = payload.get("notes")
+    if notes is None:
+        # backward-compatible fallback for older clients
+        notes = payload.get("note")
 
     if not action:
         return jsonify({"ok": False, "error": "Missing action"}), 400
@@ -59,26 +78,27 @@ def add_maintenance():
 
     db = get_db()
     db.execute(
-        "INSERT INTO maintenance_log (action, note) VALUES (?, ?)",
-        (action, note)
+        "INSERT INTO maintenance_log (action, notes) VALUES (?, ?)",
+        (action, notes)
     )
     db.commit()
 
-    return jsonify({"ok": True, "action": action})
+    return jsonify({"ok": True, "action": action, "notes": notes})
 
 
-# ----------------------------
-# Legacy endpoints (keep working) + add log writes
-# ----------------------------
-def _log_action(action: str, note: str | None = None) -> None:
+
+def _log_action(action: str, notes: str | None = None) -> None:
     db = get_db()
-    db.execute("INSERT INTO maintenance_log (action, note) VALUES (?, ?)", (action, note))
-
+    db.execute("INSERT INTO maintenance_log (action, notes) VALUES (?, ?)", (action, notes))
 
 @bp.route("/update/fertilize", methods=["POST"])
 def update_fertilized():
+    payload = request.get_json(silent=True) or {}
+    notes = payload.get("notes")  # optional
+
     db = get_db()
 
+    # update current status of tank
     db.execute(
         """
         UPDATE tank_status
@@ -87,14 +107,16 @@ def update_fertilized():
         """
     )
 
-    _log_action("fertilize")
+    _log_action("fertilize", notes)
+
     db.commit()
-
-    return jsonify({"ok": True})
-
+    return jsonify({"ok": True, "action": "fertilize", "notes": notes})
 
 @bp.route("/update/trimmed", methods=["POST"])
 def update_trimmed():
+    payload = request.get_json(silent=True) or {}
+    notes = payload.get("notes")  # optional
+
     db = get_db()
 
     db.execute(
@@ -105,14 +127,17 @@ def update_trimmed():
         """
     )
 
-    _log_action("trimmed")
+    _log_action("trimmed", notes)
     db.commit()
 
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "action": "trimmed", "notes": notes})
 
 
 @bp.route("/update/topoff", methods=["POST"])
 def update_topoff():
+    payload = request.get_json(silent=True) or {}
+    notes = payload.get("notes")  # optional
+
     db = get_db()
 
     db.execute(
@@ -123,7 +148,7 @@ def update_topoff():
         """
     )
 
-    _log_action("topoff")
+    _log_action("topoff", notes)
     db.commit()
 
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "action": "topoff", "notes": notes})

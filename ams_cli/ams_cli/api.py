@@ -27,8 +27,9 @@ def _post(path: str, *, json: Optional[dict] = None) -> Any:
 def get_data() -> Dict[str, Any]:
     return _get("/data")
 
-def post_fertilize() -> Dict[str, Any]:
-    return _post("/update/fertilize")
+def post_fertilize(notes: Optional[str] = None) -> Dict[str, Any]:
+    payload = {"notes": notes} if notes else None
+    return _post("/update/fertilize", json=payload)
 
 def post_trimmed() -> Dict[str, Any]:
     return _post("/update/trimmed")
@@ -37,10 +38,10 @@ def post_topoff() -> Dict[str, Any]:
     return _post("/update/topoff")
 
 # ---- new logging endpoints ----
-def log_maintenance(action: str, note: Optional[str] = None, occurred_at: Optional[str] = None) -> Dict[str, Any]:
+def log_maintenance(action: str, notes: Optional[str] = None, occurred_at: Optional[str] = None) -> Dict[str, Any]:
     payload: Dict[str, Any] = {"action": action}
-    if note is not None:
-        payload["note"] = note
+    if notes is not None:
+        payload["notes"] = notes
     if occurred_at is not None:
         payload["occurred_at"] = occurred_at
     return _post("/maintenance", json=payload)
