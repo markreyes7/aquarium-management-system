@@ -10,6 +10,7 @@ from .api import (
     post_topoff,
     log_maintenance,
     list_maintenance,
+    update_temperature_status,
 )
 
 
@@ -157,6 +158,9 @@ def main():
     args = parser.parse_args()
 
     if args.cmd == "status":
+        # Update temperature status with latest reading
+        update_resp = update_temperature_status()
+        # Then get the data
         data = get_data()
         print(json.dumps(data, indent=2))
         return

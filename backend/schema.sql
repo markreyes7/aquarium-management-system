@@ -1,10 +1,17 @@
 -- Tank status (single row)
+
+--tank_status needs to have the temperature AND the light status
+--for now it will latest temp and n/a
+
+
 CREATE TABLE IF NOT EXISTS tank_status (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     last_fertilized TIMESTAMP,
     last_water_change TIMESTAMP,
     last_water_topoff TIMESTAMP,
     last_trimmed TIMESTAMP,
+    temperature REAL,
+    light_state BOOLEAN,  --- check this to make sure it wont lead to any issues going forward. light can be either on or off that's it
     notes TEXT
 );
 

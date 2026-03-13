@@ -48,3 +48,6 @@ def log_maintenance(action: str, notes: Optional[str] = None, occurred_at: Optio
 
 def list_maintenance(limit: int = 20) -> List[Dict[str, Any]]:
     return _get("/maintenance", params={"limit": limit})
+
+def update_temperature_status() -> Dict[str, Any]:
+    return _post("/update/temperature")

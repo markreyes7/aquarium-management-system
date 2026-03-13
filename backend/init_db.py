@@ -17,6 +17,12 @@ tank_status_cols = {
 }
 if "last_trimmed" not in tank_status_cols:
     conn.execute("ALTER TABLE tank_status ADD COLUMN last_trimmed TIMESTAMP")
+# earlier patch added temperature and light_state columns; the schema now
+# uses REAL for temperature to match the log table.  Add them if missing.
+if "temperature" not in tank_status_cols:
+    conn.execute("ALTER TABLE tank_status ADD COLUMN temperature REAL")
+if "light_state" not in tank_status_cols:
+    conn.execute("ALTER TABLE tank_status ADD COLUMN light_state BOOLEAN")
 
 maintenance_cols = {
     row[1] for row in conn.execute("PRAGMA table_info(maintenance_log)").fetchall()
