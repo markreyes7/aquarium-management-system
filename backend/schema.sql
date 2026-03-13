@@ -6,10 +6,10 @@
 
 CREATE TABLE IF NOT EXISTS tank_status (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    last_fertilized TIMESTAMP,
-    last_water_change TIMESTAMP,
-    last_water_topoff TIMESTAMP,
-    last_trimmed TIMESTAMP,
+    last_fertilized TEXT,
+    last_water_change TEXT,
+    last_water_topoff TEXT,
+    last_trimmed TEXT,
     temperature REAL,
     light_state BOOLEAN,  --- check this to make sure it wont lead to any issues going forward. light can be either on or off that's it
     notes TEXT
@@ -19,14 +19,14 @@ CREATE TABLE IF NOT EXISTS tank_status (
 CREATE TABLE IF NOT EXISTS temperature_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     temperature REAL NOT NULL,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Light state history
 CREATE TABLE IF NOT EXISTS light_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     state TEXT,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS plants (

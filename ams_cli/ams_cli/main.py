@@ -1,5 +1,6 @@
 # ams_cli/main.py
 import argparse
+from datetime import datetime, timedelta
 import json
 import time
 
@@ -10,6 +11,7 @@ from .api import (
     post_topoff,
     log_maintenance,
     list_maintenance,
+    get_temperature_last_24_hours,
     update_temperature_status,
 )
 
@@ -155,6 +157,11 @@ def main():
     )
     p_logs.add_argument("--limit", type=int, default=20)
 
+    p_graph = sub.add_parser(
+        "temp24",
+        help="Show temperature history for the last 24 hours"
+    )
+
     args = parser.parse_args()
 
     if args.cmd == "status":
@@ -172,6 +179,47 @@ def main():
     if args.cmd in ("logs", "maintenance"):
         rows = list_maintenance(limit=args.limit)
         print(json.dumps(rows, indent=2))
+        return
+
+    if args.cmd == "temp24":
+        try:
+            import plotext as plt
+        except ImportError:
+            print("plotext not installed. Run: pip install plotext")
+            return
+
+        logs = get_temperature_last_24_hours()
+        if not logs:
+            print("No temperature data available in the last 24 hours.")
+            return
+
+        temps = [entry["temperature"] for entry in logs]
+        now = datetime.now()
+        window_start = now - timedelta(hours=24)
+
+        x_hours = []
+        for entry in logs:
+            recorded_at = datetime.fromisoformat(entry["recorded_at"])
+            hours_since_start = (recorded_at - window_start).total_seconds() / 3600
+            x_hours.append(max(0, min(24, hours_since_start)))
+
+        print(f"Fetched {len(logs)} temperature readings from the last 24 hours.")
+        print(f"Temperature range: {min(temps):.1f}°F - {max(temps):.1f}°F")
+
+        # plt.colorize("red on black, bold",        "red",        "bold",      "black",         True) #for text
+        plt.theme('clear')
+        
+        plt.plot(x_hours, temps, marker='fhd' )
+        plt.plotsize(50, 15)  # Make the plot larger for better visibility
+        plt.xlim(0, 24)
+        plt.xticks(
+            [0, 4, 8, 12, 16, 20, 24],
+            ["00", "04", "08", "12", "16", "20", "24"],
+        )
+        plt.title("Temperature History (Last 24 Hours)")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature (°F)")
+        plt.show()
         return
 
     # Action commands

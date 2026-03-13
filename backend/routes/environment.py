@@ -40,7 +40,43 @@ def log_temperature():
     # )
     db.commit()
 
-    return jsonify({"ok": True, "temperature": temp})
+@bp.route("/environment/temperature/logs", methods=["GET"])
+def get_temperature_logs():
+    """Return recent temperature log entries for analysis."""
+    limit = request.args.get("limit", "100") # will be changed in the future
+    try:
+        limit_i = max(1, min(1000, int(limit)))
+    except ValueError:
+        return jsonify({"ok": False, "error": "limit must be an integer"}), 400
+
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT temperature, recorded_at
+        FROM temperature_log
+        ORDER BY recorded_at DESC
+        LIMIT ?
+        """,
+        (limit_i,)
+    ).fetchall()
+
+    return jsonify([dict(r) for r in rows])
+
+
+@bp.route("/environment/temperature/last-24-hours", methods=["GET"])
+def get_temperature_last_24_hours():
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT temperature, recorded_at
+        FROM temperature_log
+        WHERE recorded_at >= datetime('now', '-24 hours')
+        ORDER BY recorded_at ASC
+        """
+    ).fetchall()
+
+    return jsonify([dict(r) for r in rows])
+
 
 @bp.route("/environment/temperature/latest", methods=["GET"])
 def latest_temperature():
