@@ -31,10 +31,6 @@ def get_data():
 
     return jsonify(data)
 
-
-# ----------------------------
-# New: log endpoints (what you want)
-# ----------------------------
 @bp.route("/maintenance", methods=["GET"])
 def list_maintenance():
     limit = request.args.get("limit", "50")
@@ -59,11 +55,6 @@ def list_maintenance():
 
 @bp.route("/maintenance", methods=["POST"])
 def add_maintenance():
-    """
-    JSON:
-      - action (required) e.g. fertilize, trimmed, topoff, water_change
-      - notes (optional)
-    """
     payload = request.get_json(force=True)
     action = payload.get("action")
     notes = payload.get("notes")

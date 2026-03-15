@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS temperature_log (
 -- Light state history
 CREATE TABLE IF NOT EXISTS light_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    state TEXT,
+    state BOOLEAN NOT NULL CHECK (state IN (0, 1)),
     recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

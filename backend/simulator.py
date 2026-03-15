@@ -26,7 +26,6 @@ def log_temperature(value):
 
 
 def fertilize_tank():
-    """Simulate a fertilization event"""
     try:
         res = requests.post("http://127.0.0.1:3001/update/fertilize")
         if res.ok:

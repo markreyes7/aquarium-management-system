@@ -1,2 +1,0 @@
-for testing do: flask --app server run --debug
-

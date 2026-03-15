@@ -1,18 +1,16 @@
+import os
+
+import requests
 from flask import Blueprint, jsonify, request
 from db import get_db
+from light_state import normalize_light_state
+
+ARDUINO_BASE_URL = os.getenv("ARDUINO_BASE_URL")
 
 bp = Blueprint("environment", __name__)
 
 @bp.route("/temp", methods=["GET"])
 def get_temp():
-    """Return the current temperature (and optionally other status).
-
-    This endpoint is intended as a simple "check the temperature" command
-    used by clients.  It no longer touches the log table; the log remains
-    intact for historical records.  The most recent reading is stored in
-    the singleton ``tank_status`` row, which is updated whenever a new
-    temperature is logged.
-    """
     db = get_db()
     row = db.execute(
         "SELECT temperature FROM tank_status WHERE id = 1"
@@ -21,7 +19,6 @@ def get_temp():
 
 @bp.route("/environment/temperature", methods=["POST"])
 def log_temperature():
-    """Store a new reading in the log and update the status table."""
     payload = request.get_json(force=True)
     temp = payload.get("temperature")
 
@@ -33,16 +30,11 @@ def log_temperature():
         "INSERT INTO temperature_log (temperature) VALUES (?)",
         (temp,)
     )
-    # # also keep the singleton status row current so /temp is fast
-    # db.execute(
-    #     "UPDATE tank_status SET temperature = ? WHERE id = 1",
-    #     (temp,)
-    # )
+    
     db.commit()
 
 @bp.route("/environment/temperature/logs", methods=["GET"])
 def get_temperature_logs():
-    """Return recent temperature log entries for analysis."""
     limit = request.args.get("limit", "100") # will be changed in the future
     try:
         limit_i = max(1, min(1000, int(limit)))
@@ -92,7 +84,6 @@ def latest_temperature():
 
 @bp.route("/update/temperature", methods=["POST"])
 def update_temperature_status():
-    """Update the tank_status with the latest temperature from the log."""
     db = get_db()
     row = db.execute(
         "SELECT temperature FROM temperature_log "
@@ -107,3 +98,75 @@ def update_temperature_status():
     )
     db.commit()
     return jsonify({"ok": True, "temperature": row["temperature"]})
+
+
+@bp.route("/environment/light", methods=["POST"])
+def log_light_state():
+    payload = request.get_json(force=True)
+    raw_state = payload.get("state")
+    state = normalize_light_state(raw_state)
+
+    if state is None:
+        return jsonify({"ok": False, "error": "state must be 0 or 1"}), 400
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO light_log (state) VALUES (?)",
+        (state,)
+    )
+    db.execute(
+        "UPDATE tank_status SET light_state = ? WHERE id = 1",
+        (state,)
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "state": state})
+
+
+@bp.route("/environment/light/latest", methods=["GET"])
+def latest_light_state():
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT state, recorded_at
+        FROM light_log
+        ORDER BY recorded_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if row is None:
+        return jsonify({"ok": True, "latest": None})
+    return jsonify({"ok": True, "latest": dict(row)})
+
+
+@bp.route("/environment/light/on", methods=["POST"])
+def turn_light_on():
+    if not ARDUINO_BASE_URL:
+        return jsonify({"status": "arduino base url is not configured"}), 500
+
+    try:
+        light_request = requests.get(f"{ARDUINO_BASE_URL}/light/on")
+
+        if (light_request.status_code == 200):
+            return jsonify({"status": "light on"})
+        else:
+            return jsonify({"status": "response was found but failed. check arduino "}), 500
+    except requests.exceptions.RequestException:
+        return jsonify({"status": "light could not be detected"}), 500
+
+@bp.route("/environment/light/off", methods=["POST"])
+def turn_light_off():
+    if not ARDUINO_BASE_URL:
+        return jsonify({"status": "arduino base url is not configured"}), 500
+
+    try:
+        light_request = requests.get(f"{ARDUINO_BASE_URL}/light/off")
+
+        if (light_request.status_code == 200):
+            return jsonify({"status": "light off"})
+        else:
+            return jsonify({"status": "response was found but failed. check arduino "}), 500
+    except requests.exceptions.RequestException:
+        return jsonify({"status": "light could not be detected"}), 500
+
+

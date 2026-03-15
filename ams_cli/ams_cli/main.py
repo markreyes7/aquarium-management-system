@@ -121,12 +121,6 @@ def show_dummy_status_ui(animated: bool = True, seconds: int = 12, fps: int = 8)
 
 
 def prompt_note(action_name: str) -> str | None:
-    """
-    Ask the user for an optional note.
-    - Enter (blank) = no note
-    - "n" / "no" = no note
-    Returns: note string or None
-    """
     try:
         notes = input(f"Add a note for '{action_name}'? (enter to skip): ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -209,7 +203,7 @@ def main():
         # plt.colorize("red on black, bold",        "red",        "bold",      "black",         True) #for text
         plt.theme('clear')
         
-        plt.plot(x_hours, temps, marker='fhd' )
+        plt.plot(x_hours, temps, marker='fhd', color='cyan+' )
         plt.plotsize(50, 15)  # Make the plot larger for better visibility
         plt.xlim(0, 24)
         plt.xticks(
@@ -222,7 +216,6 @@ def main():
         plt.show()
         return
 
-    # Action commands
     if args.cmd == "fertilize":
         resp = post_fertilize()
         print("✅ Fertilized:", resp)
