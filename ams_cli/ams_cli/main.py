@@ -7,6 +7,8 @@ import time
 from .api import (
     get_data,
     post_fertilize,
+    post_light_off,
+    post_light_on,
     post_trimmed,
     post_topoff,
     log_maintenance,
@@ -143,6 +145,8 @@ def main():
     sub.add_parser("fertilize", help="Mark tank as fertilized (timestamp now)")
     sub.add_parser("trimmed", help="Mark tank as trimmed (timestamp now)")
     sub.add_parser("topoff", help="Mark last water topoff date (timestamp now)")
+    sub.add_parser("lighton", help="Turn the aquarium light on")
+    sub.add_parser("lightoff", help="Turn the aquarium light off")
 
     p_logs = sub.add_parser(
         "logs",
@@ -214,6 +218,16 @@ def main():
         plt.xlabel("Time")
         plt.ylabel("Temperature (°F)")
         plt.show()
+        return
+
+    if args.cmd == "lighton":
+        resp = post_light_on()
+        print(json.dumps(resp, indent=2))
+        return
+
+    if args.cmd == "lightoff":
+        resp = post_light_off()
+        print(json.dumps(resp, indent=2))
         return
 
     if args.cmd == "fertilize":

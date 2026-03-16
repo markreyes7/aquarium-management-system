@@ -3,7 +3,7 @@ import os
 import requests
 from flask import Blueprint, jsonify, request
 from db import get_db
-from light_state import normalize_light_state
+from light_state import record_light_state
 
 ARDUINO_BASE_URL = os.getenv("ARDUINO_BASE_URL")
 
@@ -104,21 +104,10 @@ def update_temperature_status():
 def log_light_state():
     payload = request.get_json(force=True)
     raw_state = payload.get("state")
-    state = normalize_light_state(raw_state)
+    state = record_light_state(raw_state)
 
     if state is None:
         return jsonify({"ok": False, "error": "state must be 0 or 1"}), 400
-
-    db = get_db()
-    db.execute(
-        "INSERT INTO light_log (state) VALUES (?)",
-        (state,)
-    )
-    db.execute(
-        "UPDATE tank_status SET light_state = ? WHERE id = 1",
-        (state,)
-    )
-    db.commit()
 
     return jsonify({"ok": True, "state": state})
 
@@ -148,7 +137,8 @@ def turn_light_on():
         light_request = requests.get(f"{ARDUINO_BASE_URL}/light/on")
 
         if (light_request.status_code == 200):
-            return jsonify({"status": "light on"})
+            state = record_light_state(1)
+            return jsonify({"status": "light on", "state": state})
         else:
             return jsonify({"status": "response was found but failed. check arduino "}), 500
     except requests.exceptions.RequestException:
@@ -163,10 +153,9 @@ def turn_light_off():
         light_request = requests.get(f"{ARDUINO_BASE_URL}/light/off")
 
         if (light_request.status_code == 200):
-            return jsonify({"status": "light off"})
+            state = record_light_state(0)
+            return jsonify({"status": "light off", "state": state})
         else:
             return jsonify({"status": "response was found but failed. check arduino "}), 500
     except requests.exceptions.RequestException:
         return jsonify({"status": "light could not be detected"}), 500
-
-

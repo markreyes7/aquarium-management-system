@@ -57,3 +57,11 @@ def get_temperature_last_24_hours() -> List[Dict[str, Any]]:
 
 def update_temperature_status() -> Dict[str, Any]:
     return _post("/update/temperature")
+
+
+def post_light_on() -> Dict[str, Any]:
+    return _post("/environment/light/on")
+
+
+def post_light_off() -> Dict[str, Any]:
+    return _post("/environment/light/off")
