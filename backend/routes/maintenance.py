@@ -1,7 +1,26 @@
+from datetime import datetime
+import requests
 from flask import Blueprint, jsonify, request
 from db import get_db
+from typing import Any, Dict, List, Optional
 
 bp = Blueprint("maintenance", __name__)
+
+
+def _format_topoff_timestamp(timestamp: Optional[str]) -> Optional[str]:
+    if not timestamp:
+        return None
+
+    try:
+        return datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime(
+            "%Y-%m-%d %I:%M:%S %p"
+        )
+    except ValueError:
+        return timestamp
+
+
+def get_arduino_base_url() -> str:
+    return "http://192.168.1.100"
 
 # Optional: keep welcome route if you want
 @bp.route("/", methods=["GET"])
@@ -106,7 +125,7 @@ def update_fertilized():
 @bp.route("/update/trimmed", methods=["POST"])
 def update_trimmed():
     payload = request.get_json(silent=True) or {}
-    notes = payload.get("notes")  # optional
+    notes = payload.get("notes") 
 
     db = get_db()
 
@@ -127,9 +146,53 @@ def update_trimmed():
 @bp.route("/update/topoff", methods=["POST"])
 def update_topoff():
     payload = request.get_json(silent=True) or {}
-    notes = payload.get("notes")  # optional
+    notes = payload.get("notes")
+    duration = topoff_time_duration(payload.get("seconds"))
 
     db = get_db()
+    last_topoff_row = db.execute(
+        "SELECT last_water_topoff FROM tank_status WHERE id = 1"
+    ).fetchone()
+    last_topoff = last_topoff_row["last_water_topoff"] if last_topoff_row else None
+    formatted_last_topoff = _format_topoff_timestamp(last_topoff)
+
+    if duration is None:
+        return jsonify({
+            "ok": False,
+            "error": "seconds must be a number between 1 and 5",
+            "last_topoff": formatted_last_topoff,
+        }), 400
+
+    arduino_base_url = get_arduino_base_url()
+    if not arduino_base_url:
+        return jsonify({
+            "ok": False,
+            "error": "ARDUINO_BASE_URL is not configured",
+            "last_topoff": formatted_last_topoff,
+        }), 500
+
+    try:
+        topoff_request = requests.get(
+            f"{arduino_base_url}/topoff",
+            params={"seconds": duration},
+            timeout=max(5, int(duration) + 3),
+        )
+    except requests.exceptions.RequestException as exc:
+        return jsonify({
+            "ok": False,
+            "error": "Could not reach Arduino for topoff",
+            "details": str(exc),
+            "last_topoff": formatted_last_topoff,
+        }), 502
+
+    if topoff_request.status_code != 200:
+        return jsonify({
+            "ok": False,
+            "error": "Arduino returned a non-200 response",
+            "arduino_status_code": topoff_request.status_code,
+            "arduino_response": topoff_request.text,
+            "last_topoff": formatted_last_topoff,
+        }), 502
 
     db.execute(
         """
@@ -142,4 +205,26 @@ def update_topoff():
     _log_action("topoff", notes)
     db.commit()
 
-    return jsonify({"ok": True, "action": "topoff", "notes": notes})
+    return jsonify({
+        "ok": True,
+        "action": "topoff",
+        "notes": notes,
+        "seconds": duration,
+        "arduino_response": topoff_request.text.strip(),
+        "last_topoff_before_update": formatted_last_topoff,
+    })
+
+def topoff_time_duration(user_input: Any) -> Optional[float]:
+    """
+    Validate the requested pump runtime for a topoff.
+    The client should display the previous topoff time before sending this value.
+    """
+    try:
+        seconds = float(user_input)
+    except (TypeError, ValueError):
+        return None
+
+    if seconds <= 0 or seconds > 5:
+        return None
+
+    return seconds

@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 import json
 import time
 
+
 from .api import (
     get_data,
+    get_light_status,
     post_fertilize,
     post_light_off,
     post_light_on,
@@ -135,6 +137,38 @@ def prompt_note(action_name: str) -> str | None:
     return notes
 
 
+def prompt_topoff_seconds() -> float | None:
+    try:
+        data = get_data()
+        last_topoff = data.get("last_water_topoff")
+    except Exception:
+        last_topoff = None
+
+    if last_topoff:
+        print(f"Last water topoff: {last_topoff}")
+    else:
+        print("Last water topoff: No topoff recorded yet.")
+
+    while True:
+        try:
+            user_input = input("Enter seconds to run pump (between 1-5): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n(topoff cancelled)")
+            return None
+
+        try:
+            seconds = float(user_input)
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            continue
+
+        if seconds <= 0 or seconds > 5:
+            print("Time must be between 1 and 5 seconds.")
+            continue
+
+        return seconds
+
+
 def main():
     parser = argparse.ArgumentParser(prog="ams", description="Aquarium Management CLI")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -147,6 +181,7 @@ def main():
     sub.add_parser("topoff", help="Mark last water topoff date (timestamp now)")
     sub.add_parser("lighton", help="Turn the aquarium light on")
     sub.add_parser("lightoff", help="Turn the aquarium light off")
+    sub.add_parser("lightstatus", help="Get the current aquarium light status")
 
     p_logs = sub.add_parser(
         "logs",
@@ -225,12 +260,17 @@ def main():
         print(json.dumps(resp, indent=2))
         return
 
-    if args.cmd == "lightoff":
+    elif args.cmd == "lightoff":
         resp = post_light_off()
         print(json.dumps(resp, indent=2))
         return
 
-    if args.cmd == "fertilize":
+    elif args.cmd == "lightstatus":
+        resp = get_light_status()
+        print(resp.get("status", "unknown"))
+        return
+
+    elif args.cmd == "fertilize":
         resp = post_fertilize()
         print("✅ Fertilized:", resp)
         action_name = "fertilize"
@@ -241,7 +281,10 @@ def main():
         action_name = "trimmed"
 
     elif args.cmd == "topoff":
-        resp = post_topoff()
+        seconds = prompt_topoff_seconds()
+        if seconds is None:
+            return
+        resp = post_topoff(seconds)
         print("✅ Water Restored:", resp)
         action_name = "topoff"
 

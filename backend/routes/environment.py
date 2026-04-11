@@ -3,11 +3,13 @@ import os
 import requests
 from flask import Blueprint, jsonify, request
 from db import get_db
-from light_state import record_light_state
-
-ARDUINO_BASE_URL = os.getenv("ARDUINO_BASE_URL")
+from light_state import normalize_light_state, record_light_state
 
 bp = Blueprint("environment", __name__)
+
+
+def get_arduino_base_url():
+    return "http://192.168.1.100"
 
 @bp.route("/temp", methods=["GET"])
 def get_temp():
@@ -128,34 +130,108 @@ def latest_light_state():
     return jsonify({"ok": True, "latest": dict(row)})
 
 
-@bp.route("/environment/light/on", methods=["POST"])
-def turn_light_on():
-    if not ARDUINO_BASE_URL:
-        return jsonify({"status": "arduino base url is not configured"}), 500
+@bp.route("/environment/light/status", methods=["GET"])
+def current_light_status():
+    db = get_db()
+    row = db.execute(
+        "SELECT light_state FROM tank_status WHERE id = 1"
+    ).fetchone()
+
+    if row is None or row["light_state"] is None:
+        return jsonify({"ok": True, "status": None, "state": None})
+
+    state = row["light_state"]
+    return jsonify({
+        "ok": True,
+        "status": "on" if state == 1 else "off",
+        "state": state
+    })
+
+
+@bp.route("/environment/light/currentStatus", methods=["GET"])
+def light_current_status():
+    arduino_base_url = get_arduino_base_url()
+    if not arduino_base_url:
+        return jsonify({
+            "ok": False,
+            "error": "ARDUINO_BASE_URL is not configured"
+        }), 500
 
     try:
-        light_request = requests.get(f"{ARDUINO_BASE_URL}/light/on")
+        light_request = requests.get(f"{arduino_base_url}/light/currentStatus", timeout=5)
 
-        if (light_request.status_code == 200):
+        if light_request.status_code == 200:
+            payload = light_request.json()
+            return jsonify({"status": payload.get("status")})
+
+        return jsonify({
+            "ok": False,
+            "error": "Arduino returned a non-200 response",
+            "arduino_status_code": light_request.status_code,
+            "arduino_response": light_request.text,
+        }), 502
+    except requests.exceptions.RequestException as exc:
+        return jsonify({
+            "ok": False,
+            "error": "Could not reach Arduino",
+            "details": str(exc),
+        }), 502
+
+
+@bp.route("/environment/light/on", methods=["POST"])
+def turn_light_on():
+    arduino_base_url = get_arduino_base_url()
+    if not arduino_base_url:
+        return jsonify({
+            "ok": False,
+            "error": "ARDUINO_BASE_URL is not configured"
+        }), 500
+
+    try:
+        light_request = requests.get(f"{arduino_base_url}/light/on", timeout=5)
+
+        if light_request.status_code == 200:
             state = record_light_state(1)
-            return jsonify({"status": "light on", "state": state})
-        else:
-            return jsonify({"status": "response was found but failed. check arduino "}), 500
-    except requests.exceptions.RequestException:
-        return jsonify({"status": "light could not be detected"}), 500
+            return jsonify({"ok": True, "status": "light on", "state": state})
+
+        return jsonify({
+            "ok": False,
+            "error": "Arduino returned a non-200 response",
+            "arduino_status_code": light_request.status_code,
+            "arduino_response": light_request.text,
+        }), 502
+    except requests.exceptions.RequestException as exc:
+        return jsonify({
+            "ok": False,
+            "error": "Could not reach Arduino",
+            "details": str(exc),
+        }), 502
 
 @bp.route("/environment/light/off", methods=["POST"])
 def turn_light_off():
-    if not ARDUINO_BASE_URL:
-        return jsonify({"status": "arduino base url is not configured"}), 500
+    arduino_base_url = get_arduino_base_url()
+    if not arduino_base_url:
+        return jsonify({
+            "ok": False,
+            "error": "ARDUINO_BASE_URL is not configured"
+        }), 500
 
     try:
-        light_request = requests.get(f"{ARDUINO_BASE_URL}/light/off")
+        light_request = requests.get(f"{arduino_base_url}/light/off", timeout=5)
 
-        if (light_request.status_code == 200):
+        if light_request.status_code == 200:
             state = record_light_state(0)
-            return jsonify({"status": "light off", "state": state})
-        else:
-            return jsonify({"status": "response was found but failed. check arduino "}), 500
-    except requests.exceptions.RequestException:
-        return jsonify({"status": "light could not be detected"}), 500
+            return jsonify({"ok": True, "status": "light off", "state": state})
+
+        return jsonify({
+            "ok": False,
+            "error": "Arduino returned a non-200 response",
+            "arduino_status_code": light_request.status_code,
+            "arduino_response": light_request.text,
+        }), 502
+    except requests.exceptions.RequestException as exc:
+        return jsonify({
+            "ok": False,
+            "error": "Could not reach Arduino",
+            "details": str(exc),
+        }), 502

@@ -34,8 +34,11 @@ def post_fertilize(notes: Optional[str] = None) -> Dict[str, Any]:
 def post_trimmed() -> Dict[str, Any]:
     return _post("/update/trimmed")
 
-def post_topoff() -> Dict[str, Any]:
-    return _post("/update/topoff")
+def post_topoff(seconds: float, notes: Optional[str] = None) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {"seconds": seconds}
+    if notes is not None:
+        payload["notes"] = notes
+    return _post("/update/topoff", json=payload)
 
 # ---- new logging endpoints ----
 def log_maintenance(action: str, notes: Optional[str] = None, occurred_at: Optional[str] = None) -> Dict[str, Any]:
@@ -65,3 +68,7 @@ def post_light_on() -> Dict[str, Any]:
 
 def post_light_off() -> Dict[str, Any]:
     return _post("/environment/light/off")
+
+
+def get_light_status() -> Dict[str, Any]:
+    return _get("/environment/light/currentStatus")

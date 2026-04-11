@@ -1,4 +1,7 @@
 from db import get_db
+from datetime import datetime
+
+global time_set
 
 
 def normalize_light_state(value):
