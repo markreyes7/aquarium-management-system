@@ -70,5 +70,9 @@ def post_light_off() -> Dict[str, Any]:
     return _post("/environment/light/off")
 
 
+def post_light_auto() -> Dict[str, Any]:
+    return _post("/environment/light/auto")
+
+
 def get_light_status() -> Dict[str, Any]:
     return _get("/environment/light/currentStatus")

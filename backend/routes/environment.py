@@ -235,3 +235,49 @@ def turn_light_off():
             "error": "Could not reach Arduino",
             "details": str(exc),
         }), 502
+
+
+@bp.route("/environment/light/auto", methods=["POST"])
+def turn_light_auto():
+    arduino_base_url = get_arduino_base_url()
+    if not arduino_base_url:
+        return jsonify({
+            "ok": False,
+            "error": "ARDUINO_BASE_URL is not configured"
+        }), 500
+
+    try:
+        light_request = requests.get(f"{arduino_base_url}/light/auto", timeout=5)
+
+        if light_request.status_code == 200:
+            try:
+                status_request = requests.get(
+                    f"{arduino_base_url}/light/currentStatus",
+                    timeout=5,
+                )
+                if status_request.status_code == 200:
+                    payload = status_request.json()
+                    state = record_light_state(payload.get("status"))
+                    return jsonify({
+                        "ok": True,
+                        "status": "light auto",
+                        "light_state": payload.get("status"),
+                        "state": state,
+                    })
+            except requests.exceptions.RequestException:
+                pass
+
+            return jsonify({"ok": True, "status": "light auto"})
+
+        return jsonify({
+            "ok": False,
+            "error": "Arduino returned a non-200 response",
+            "arduino_status_code": light_request.status_code,
+            "arduino_response": light_request.text,
+        }), 502
+    except requests.exceptions.RequestException as exc:
+        return jsonify({
+            "ok": False,
+            "error": "Could not reach Arduino",
+            "details": str(exc),
+        }), 502

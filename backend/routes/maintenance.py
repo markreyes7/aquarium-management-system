@@ -48,6 +48,68 @@ def get_data():
         latest_note_row["notes"] if latest_note_row else None
     )
 
+    latest_temperature_row = db.execute(
+        """
+        SELECT temperature, recorded_at
+        FROM temperature_log
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    data["latest_temperature"] = (
+        dict(latest_temperature_row) if latest_temperature_row else None
+    )
+
+    latest_light_row = db.execute(
+        """
+        SELECT state, recorded_at
+        FROM light_log
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if latest_light_row:
+        latest_light = dict(latest_light_row)
+        latest_light["status"] = "on" if latest_light["state"] == 1 else "off"
+        data["latest_light"] = latest_light
+    else:
+        data["latest_light"] = None
+
+    plant_summary_row = db.execute(
+        """
+        SELECT
+            COUNT(*) AS total_plants,
+            SUM(CASE WHEN in_tank = 1 THEN 1 ELSE 0 END) AS plants_in_tank
+        FROM plants
+        """
+    ).fetchone()
+    data["plant_summary"] = {
+        "total_plants": plant_summary_row["total_plants"] if plant_summary_row else 0,
+        "plants_in_tank": plant_summary_row["plants_in_tank"] if plant_summary_row and plant_summary_row["plants_in_tank"] is not None else 0,
+    }
+
+    maintenance_summary_row = db.execute(
+        """
+        SELECT COUNT(*) AS total_maintenance_events
+        FROM maintenance_log
+        """
+    ).fetchone()
+    data["maintenance_summary"] = {
+        "total_events": maintenance_summary_row["total_maintenance_events"]
+        if maintenance_summary_row
+        else 0
+    }
+
+    recent_maintenance_rows = db.execute(
+        """
+        SELECT action, occurred_at, notes
+        FROM maintenance_log
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT 5
+        """
+    ).fetchall()
+    data["recent_maintenance"] = [dict(row) for row in recent_maintenance_rows]
+
     return jsonify(data)
 
 @bp.route("/maintenance", methods=["GET"])

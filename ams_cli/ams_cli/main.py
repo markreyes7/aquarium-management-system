@@ -2,12 +2,11 @@
 import argparse
 from datetime import datetime, timedelta
 import json
-import time
-
 
 from .api import (
     get_data,
     get_light_status,
+    post_light_auto,
     post_fertilize,
     post_light_off,
     post_light_on,
@@ -16,112 +15,330 @@ from .api import (
     log_maintenance,
     list_maintenance,
     get_temperature_last_24_hours,
-    update_temperature_status,
 )
 
+ACCENT = "bold #8be9c1"
+SOFT_TEXT = "#b8f2e6"
+MUTED_TEXT = "#9ccfd8"
+WARM_TEXT = "#f6c6ea"
+BORDER = "#7bdff2"
+DETAIL = "#cdb4db"
 
-def _build_status_table():
 
-    # filling with dummy data for now
+def _format_timestamp(value: str | None) -> str:
+    if not value:
+        return "N/A"
+
+    try:
+        return datetime.fromisoformat(value).strftime("%Y-%m-%d %I:%M %p")
+    except ValueError:
+        return value
+
+# this is running fine. status demo is still not showing the full value
+def _format_temperature(value) -> str:
+    if value is None:
+        return "N/A"
+
+    try:
+        return " " + f"{float(value):.1f}F"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_light_status(value) -> str:
+    if value is None:
+        return "Unknown"
+    if value in (1, "1", True, "on", "ON"):
+        return "On"
+    if value in (0, "0", False, "off", "OFF"):
+        return "Off"
+    return str(value)
+
+
+def _with_live_light_status(data):
+    enriched = dict(data)
+    latest_light = dict(enriched.get("latest_light") or {})
+
+    try:
+        live_light = get_light_status()
+    except Exception:
+        live_light = None
+
+    if isinstance(live_light, dict):
+        live_status = live_light.get("status")
+        if live_status in ("on", "off"):
+            latest_light["status"] = live_status
+            enriched["live_light_status"] = live_status
+
+    if latest_light:
+        enriched["latest_light"] = latest_light
+
+    return enriched
+
+
+def _build_status_table(data):
     from rich.table import Table
+    from rich.text import Text
 
-    status_table = Table(show_header=True, header_style="bold cyan")
-    status_table.add_column("Metric", style="bold")
-    status_table.add_column("Value")
-    status_table.add_row("Water Temp", "77.4 F")
-    status_table.add_row("pH", "6.8")
-    status_table.add_row("Last Fertilized", "2026-03-02 08:15 PM")
-    status_table.add_row("Last Trimmed", "2026-02-28 07:40 PM")
-    status_table.add_row("Last Topoff", "2026-03-04 09:12 PM")
-    status_table.add_row("Latest Note", "Trimmed stem plants near filter intake.")
+    status_table = Table.grid(expand=True)
+    status_table.add_column(style=ACCENT, no_wrap=False, width=18)
+    status_table.add_column(width=2)
+    status_table.add_column(style=SOFT_TEXT, no_wrap=True, min_width=12)
+
+    latest_temperature = data.get("latest_temperature") or {}
+    latest_light = data.get("latest_light") or {}
+
+    status_table.add_row("Current Temperature" ,"", _format_temperature(data.get("temperature")))
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row(
+        "Latest Temp Log",
+        "",
+        _format_temperature(latest_temperature.get("temperature")),
+    )
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row(
+        "Temp Logged At",
+        "",
+        _format_timestamp(latest_temperature.get("recorded_at")),
+    )
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row(
+        "Light Status",
+        "",
+        _format_light_status(
+            latest_light.get("status", data.get("light_state"))
+        ),
+    )
+
+    status_table.add_row(Text(""), Text(""), Text(""))
+
+    status_table.add_row(
+        "Last Fertilized",
+        "",
+        _format_timestamp(data.get("last_fertilized")),
+    )
+
+    status_table.add_row(Text(""), Text(""), Text(""))
+
+    status_table.add_row(
+        "Last Trimmed",
+        "",
+        _format_timestamp(data.get("last_trimmed")),
+    )
+    status_table.add_row(Text(""), Text(""), Text(""))
+    
+    status_table.add_row(
+        "Last Topoff",
+        "",
+        _format_timestamp(data.get("last_water_topoff")),
+    )
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row(
+        "Latest Note",
+        "",
+        data.get("latest_maintenance_note") or "No recent note",
+    )
     return status_table
 
 
-def _build_reminders():
+def _build_welcome_panel():
+    from rich.align import Align
+    from rich.text import Text
+
+    welcome_text = Text(justify="center")
+    welcome_text.append("\n", style=MUTED_TEXT)
+    welcome_text.append("WELCOME TO AMS\n", style=WARM_TEXT)
+    welcome_text.append("aquarium management system\n", style=ACCENT)
+    welcome_text.append("live tank status dashboard", style=MUTED_TEXT)
+    welcome_text.append("\n", style=MUTED_TEXT)
+
+    return Align.center(welcome_text)
+
+
+def _build_summary_table(data):
     from rich.table import Table
 
-    reminders = Table.grid(padding=(0, 1))
-    reminders.add_row("[bold yellow]Reminders[/bold yellow]")
-    reminders.add_row("- Fertilize in 2 days")
-    reminders.add_row("- Top off by tomorrow")
-    reminders.add_row("- Check CO2 diffuser bubble rate")
-    return reminders
+    summary = Table(
+        show_header=False,
+        box=None,
+        pad_edge=False,
+        expand=False,
+        padding=(0, 3),
+    )
+    summary.add_column("Source", style=ACCENT, no_wrap=True, min_width=12)
+    summary.add_column("Status", style=SOFT_TEXT, min_width=18)
+
+    plant_summary = data.get("plant_summary") or {}
+    maintenance_summary = data.get("maintenance_summary") or {}
+    latest_light = data.get("latest_light") or {}
+
+    summary.add_row(
+        "Plants",
+        f"{plant_summary.get('plants_in_tank', 0)} in tank / {plant_summary.get('total_plants', 0)} total",
+    )
+    summary.add_row(
+        "Maintenance",
+        f"{maintenance_summary.get('total_events', 0)} logged events",
+    )
+    summary.add_row(
+        "Light Log",
+        _format_timestamp(latest_light.get("recorded_at")),
+    )
+    summary.add_row(
+        "Tank Row",
+        "Available" if data else "Missing",
+    )
+    return summary
 
 
-def _aquarium_frame(frame: int):
+def _build_recent_maintenance_panel(data):
+    from rich.table import Table
+
+    recent = Table(
+        show_header=True,
+        header_style=DETAIL,
+        box=None,
+        pad_edge=False,
+        expand=False,
+        padding=(0, 3),
+    )
+    recent.add_column("action", style=ACCENT, no_wrap=True)
+    recent.add_column("when", style=SOFT_TEXT, no_wrap=True)
+    recent.add_column("notes", style=MUTED_TEXT, overflow="fold")
+
+    rows = data.get("recent_maintenance") or []
+    if not rows:
+        recent.add_row("N/A", "N/A", "No maintenance logged yet")
+    else:
+        for row in rows:
+            recent.add_row(
+                str(row.get("action", "N/A")).title(),
+                _format_timestamp(row.get("occurred_at")),
+                row.get("notes") or "-",
+            )
+    return recent
+
+
+def _build_nav_bar():
+    from rich.table import Table
+
+    nav = Table(
+        show_header=False,
+        box=None,
+        expand=True,
+        pad_edge=False,
+        padding=(0, 2),
+    )
+    for _ in range(4):
+        nav.add_column(style=DETAIL, justify="center", ratio=1)
+
+    nav.add_row(
+        "terminal",
+        "tank status",
+        "welcome",
+        "ams dashboard",
+    )
+    return nav
+
+
+def _build_footer():
     from rich.text import Text
-    # animation is choppy needs work
-    width = 53
-    fish = ["><(((('>", "><(((*>", "><>"]
-    positions = [
-        frame % (width - len(fish[0])),
-        (frame * 2 + 9) % (width - len(fish[1])),
-        (frame * 3 + 3) % (width - len(fish[2])),
-    ]
 
-    water_top = "~ " * 32
-    water_bottom = "~" * width
-    rows = [
-        " " * positions[0] + fish[0],
-        " " * positions[1] + fish[1],
-        " " * positions[2] + fish[2],
-    ]
-
-    aquarium_art = Text()
-    aquarium_art.append(water_top[:width], style="bold cyan")
-    aquarium_art.append("\n")
-    aquarium_art.append(rows[0], style="blue")
-    aquarium_art.append("\n")
-    aquarium_art.append(rows[1], style="bright_blue")
-    aquarium_art.append("\n")
-    aquarium_art.append(rows[2], style="cyan")
-    aquarium_art.append("\n")
-    aquarium_art.append(water_bottom, style="cyan")
-
-    return aquarium_art
+    footer = Text(justify="center")
+    footer.append("r refresh   ", style=DETAIL)
+    footer.append("t temp24   ", style=MUTED_TEXT)
+    footer.append("l light status   ", style=SOFT_TEXT)
+    footer.append("q quit", style=WARM_TEXT)
+    return footer
 
 
-def _build_demo_panel(frame: int):
+def _build_status_dashboard(data, console_width: int):
+    from rich.align import Align
+    from rich.console import Group
     from rich.panel import Panel
     from rich.table import Table
+    from rich.text import Text
 
-    body = Table.grid(padding=(1, 0))
-    body.add_row(_aquarium_frame(frame))
-    body.add_row(_build_status_table())
-    body.add_row(_build_reminders())
-    return Panel.fit(
-        body,
-        title="[bold blue]Aquarium Dashboard (Demo)[/bold blue]",
-        border_style="blue",
+    dashboard_width = max(90, console_width - 4)
+
+    top_content = Table.grid(expand=True)
+    top_content.add_column(ratio=5, min_width=34)
+    top_content.add_column(ratio=3, min_width=20)
+    top_content.add_column(ratio=4, min_width=28)
+
+    top_content.add_row(
+        Text("~ tank ~", style=ACCENT),
+        _build_welcome_panel(),
+        Text("~ summary ~", style=ACCENT),
+    )
+    top_content.add_row(
+        _build_status_table(data),
+        Text(""),
+        Panel(
+            _build_summary_table(data),
+            title="summary",
+            title_align="left",
+            border_style=BORDER,
+            padding=(1, 2),
+            expand=False,
+        ),
+    )
+
+    recent_activity = Group(
+        Text("~ recent activity ~", style=ACCENT),
+        Text(
+            "pulling from tank_status, temperature_log, light_log, plants, maintenance_log",
+            style=MUTED_TEXT,
+        ),
+        Text(""),
+        Panel(
+            _build_recent_maintenance_panel(data),
+            border_style=BORDER,
+            padding=(1, 2),
+            expand=True,
+        ),
+    )
+
+    centered_group = Group(
+        _build_nav_bar(),
+        Text(""),
+        top_content,
+        Text(""),
+        recent_activity,
+        Text(""),
+        Text("live aquarium command center", style=WARM_TEXT, justify="center"),
+        Text("~" * 76, style=DETAIL, justify="center"),
+        _build_footer(),
+    )
+
+    return Align.center(
+        Panel(
+            centered_group,
+            border_style=BORDER,
+            padding=(2, 3),
+            expand=False,
+            width=dashboard_width,
+        )
     )
 
 
-def show_dummy_status_ui(animated: bool = True, seconds: int = 12, fps: int = 8) -> None:
-
-    # Render a fake status screen with Rich.
+def show_status_ui() -> None:
     try:
         from rich.console import Console
-        from rich.live import Live
     except ImportError:
         print(".....")
         return
 
     console = Console()
-
-    if not animated:
-        console.print(_build_demo_panel(0))
+    try:
+        data = get_data()
+    except Exception as exc:
+        print(f"Unable to load dashboard data: {exc}")
         return
 
-    sleep_time = 1 / max(1, fps)
-    max_frames = max(1, seconds * max(1, fps))
+    data = _with_live_light_status(data)
 
-    try:
-        with Live(console=console, refresh_per_second=max(1, fps), screen=False) as live:
-            for frame in range(max_frames):
-                live.update(_build_demo_panel(frame))
-                time.sleep(sleep_time)
-    except KeyboardInterrupt:
-        pass
+    console.print(_build_status_dashboard(data, console.width))
 
 
 def prompt_note(action_name: str) -> str | None:
@@ -174,7 +391,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("status", help="Show current tank status")
-    sub.add_parser("status-demo", help="Show fake status UI with Rich (no API calls)")
+    sub.add_parser("status-demo", help="Show live status UI with Rich")
 
     sub.add_parser("fertilize", help="Mark tank as fertilized (timestamp now)")
     sub.add_parser("trimmed", help="Mark tank as trimmed (timestamp now)")
@@ -182,6 +399,7 @@ def main():
     sub.add_parser("lighton", help="Turn the aquarium light on")
     sub.add_parser("lightoff", help="Turn the aquarium light off")
     sub.add_parser("lightstatus", help="Get the current aquarium light status")
+    sub.add_parser("lightauto", help="Return the aquarium light to auto mode")
 
     p_logs = sub.add_parser(
         "logs",
@@ -198,15 +416,12 @@ def main():
     args = parser.parse_args()
 
     if args.cmd == "status":
-        # Update temperature status with latest reading
-        update_resp = update_temperature_status()
-        # Then get the data
         data = get_data()
         print(json.dumps(data, indent=2))
         return
 
     if args.cmd == "status-demo":
-        show_dummy_status_ui()
+        show_status_ui()
         return
 
     if args.cmd in ("logs", "maintenance"):
@@ -268,6 +483,11 @@ def main():
     elif args.cmd == "lightstatus":
         resp = get_light_status()
         print(resp.get("status", "unknown"))
+        return
+
+    elif args.cmd == "lightauto":
+        resp = post_light_auto()
+        print(json.dumps(resp, indent=2))
         return
 
     elif args.cmd == "fertilize":

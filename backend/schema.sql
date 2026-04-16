@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS tank_status (
     last_trimmed TEXT,
     temperature REAL,
     light_state BOOLEAN,  --- check this to make sure it wont lead to any issues going forward. light can be either on or off that's it
+    light_timer_enabled BOOLEAN DEFAULT 0,
     notes TEXT
 );
 

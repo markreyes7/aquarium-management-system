@@ -5,13 +5,15 @@ from pathlib import Path
 
 import requests
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 DATABASE = BASE_DIR / "aquarium.db"
 
 DEFAULT_SENSOR_URL = "http://192.168.1.100/temp"
-DEFAULT_POLL_INTERVAL_SECONDS = 60
+DEFAULT_POLL_INTERVAL_SECONDS = 240
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 5
 
+
+"""this needs to be reworked. needs better optimization"""
 def sensor_url() -> str:
     return os.getenv("AMS_TEMPERATURE_SENSOR_URL", DEFAULT_SENSOR_URL)
 
@@ -40,8 +42,12 @@ def fetch_current_temperature() -> float:
     value = payload.get("temperature")
     if value is None:
         value = payload.get("temp")
-    elif value is None:
-        raise ValueError("Temperature payload missing 'temperature' field")
+    if value is None:
+        value = payload.get("temperature_f")
+    if value is None:
+        raise ValueError(
+            "Temperature payload missing 'temperature', 'temp', or 'temperature_f' field"
+        )
 
     return float(value)
 
