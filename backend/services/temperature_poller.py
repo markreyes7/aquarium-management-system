@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -80,7 +81,10 @@ def run_temperature_poller() -> None:
             temperature = fetch_current_temperature()
             save_temperature_reading(temperature)
             print(f"Saved temperature: {temperature}")
-        except (requests.RequestException, ValueError) as exc:
+        except requests.RequestException as exc:
+            print(f"Temperature poller shutting down: sensor/Arduino unavailable: {exc}")
+            sys.exit(1)
+        except ValueError as exc:
             print(f"Temperature poll failed: {exc}")
 
         time.sleep(interval)
