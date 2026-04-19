@@ -82,7 +82,7 @@ def run_temperature_poller() -> None:
             save_temperature_reading(temperature)
             print(f"Saved temperature: {temperature}")
         except requests.RequestException as exc:
-            print(f"Temperature poller shutting down: sensor/Arduino unavailable: {exc}")
+            print(f"Temperature poller shutting down: sensor/Arduino is not online: {exc}")
             sys.exit(1)
         except ValueError as exc:
             print(f"Temperature poll failed: {exc}")

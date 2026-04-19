@@ -7,6 +7,7 @@ Clean, minimal, and accurate setup instructions for local development.
 ## Project Assumptions
 
 - Backend: Flask + SQLite
+- CLI: Python
 - Backend runs on `127.0.0.1:3001`
 - SQLite database file: `backend/aquarium.db`
 - Commands are run from the project root unless stated otherwise
@@ -21,7 +22,13 @@ Clean, minimal, and accurate setup instructions for local development.
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install flask requests
+```
+
+If you want to use the CLI graph command:
+
+```bash
+pip install plotext
 ```
 
 ### Run the backend server
@@ -105,7 +112,7 @@ Guidelines:
 Likely causes:
 - Backend not running
 - Wrong port (5000 vs 3001)
-- Simulator or frontend started before backend
+- Simulator started before backend
 
 Quick check:
 
@@ -130,7 +137,7 @@ Fix:
 ## 6. Development Order (Mental Model)
 
 ```
-Backend → curl verification → frontend → optional simulators
+Backend → curl verification → CLI or optional simulators
 ```
 
 If something breaks, go back one step and re-verify.
@@ -144,4 +151,3 @@ This document intentionally avoids:
 - Hidden assumptions
 - Port ambiguity
 - “Magic” copy-paste steps without context
-

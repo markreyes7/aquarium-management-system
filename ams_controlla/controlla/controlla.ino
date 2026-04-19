@@ -10,6 +10,7 @@ IPAddress ip(192, 168, 1, 100);
 WiFiServer server(80);
 
 const int lightPin = 3;
+const int pumpPin = 4;
 
 // UDP + NTP
 WiFiUDP ntpUDP;
@@ -42,7 +43,9 @@ void setup() {
   while (!Serial) {}
 
   pinMode(lightPin, OUTPUT);
+  pinMode(pumpPin, OUTPUT);
   digitalWrite(lightPin, LOW);
+  digitalWrite(pumpPin, LOW);
 
   Serial.println("Starting...");
 
@@ -197,21 +200,56 @@ void handleWebClient() {
     controlMode = AUTO_MODE;
     Serial.println("Returned to AUTO mode");
   }
-  
   else if (request.indexOf("/temp") != -1) {
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.println();
 
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: application/json");
-  client.println("Connection: close");
-  client.println();
+    client.print("{\"temperature_f\": ");
+    client.print(getCurrentTemperatureF());
+    client.println("}");
 
-  client.print("{\"temperature_f\": ");
-  client.print(getCurrentTemperatureF());
-  client.println("}");
+    client.stop();
+    return;
+  }
+  else if (request.indexOf("/topoff?seconds=") != -1) {
+    float seconds = extractTopoffSeconds(request);
 
-  client.stop();
-  return;
-}
+    if (seconds > 0 && seconds <= 5) {
+      Serial.print("Running topoff pump for ");
+      Serial.print(seconds);
+      Serial.println(" seconds");
+
+      digitalWrite(pumpPin, HIGH);
+      delay((unsigned long)(seconds * 1000));
+      digitalWrite(pumpPin, LOW);
+
+      client.println("HTTP/1.1 200 OK");
+      client.println("Content-Type: text/plain");
+      client.println("Connection: close");
+      client.println();
+      client.print("Topoff completed in ");
+      client.print(seconds);
+      client.println(" seconds");
+
+      delay(3);
+      client.stop();
+      Serial.println("Client disconnected");
+      return;
+    }
+
+    client.println("HTTP/1.1 400 Bad Request");
+    client.println("Content-Type: text/plain");
+    client.println("Connection: close");
+    client.println();
+    client.println("Invalid topoff seconds");
+
+    delay(3);
+    client.stop();
+    Serial.println("Client disconnected");
+    return;
+  }
 
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: text/html");
@@ -251,6 +289,22 @@ void handleWebClient() {
   delay(3);
   client.stop();
   Serial.println("Client disconnected");
+}
+
+float extractTopoffSeconds(const String& request) {
+  int start = request.indexOf("/topoff?seconds=");
+  if (start == -1) {
+    return -1;
+  }
+
+  start += 16;
+  int end = request.indexOf(' ', start);
+  if (end == -1) {
+    end = request.length();
+  }
+
+  String value = request.substring(start, end);
+  return value.toFloat();
 }
 
 void printCurrentTime() {
