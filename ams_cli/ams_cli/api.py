@@ -34,11 +34,17 @@ def post_fertilize(notes: Optional[str] = None) -> Dict[str, Any]:
 def post_trimmed() -> Dict[str, Any]:
     return _post("/update/trimmed")
 
-def post_topoff(seconds: float, notes: Optional[str] = None) -> Dict[str, Any]:
+def post_topoff(notes: Optional[str] = None) -> Dict[str, Any]:
+    payload: Optional[Dict[str, Any]] = None
+    if notes is not None:
+        payload = {"notes": notes}
+    return _post("/update/topoff", json=payload)
+
+def post_runtopoff(seconds: float, notes: Optional[str] = None) -> Dict[str, Any]:
     payload: Dict[str, Any] = {"seconds": seconds}
     if notes is not None:
         payload["notes"] = notes
-    return _post("/update/topoff", json=payload)
+    return _post("/update/runtopoff", json=payload)
 
 # ---- new logging endpoints ----
 def log_maintenance(action: str, notes: Optional[str] = None, occurred_at: Optional[str] = None) -> Dict[str, Any]:

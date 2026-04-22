@@ -10,8 +10,8 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DATABASE = BASE_DIR / "aquarium.db"
 
 DEFAULT_SENSOR_URL = "http://192.168.1.100/temp"
-DEFAULT_POLL_INTERVAL_SECONDS = 240
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 5
+DEFAULT_POLL_INTERVAL_SECONDS = 600
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
 
 
 """this needs to be reworked. needs better optimization"""

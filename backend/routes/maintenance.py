@@ -206,7 +206,28 @@ def update_trimmed():
 
 
 @bp.route("/update/topoff", methods=["POST"])
-def update_topoff():
+def update_manual_topoff():
+    payload = request.get_json(silent=True) or {}
+    notes = payload.get("notes")
+
+    db = get_db()
+
+    db.execute(
+        """
+        UPDATE tank_status
+        SET last_water_topoff = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """
+    )
+
+    _log_action("topoff", notes)
+    db.commit()
+
+    return jsonify({"ok": True, "action": "topoff", "notes": notes})
+
+
+@bp.route("/update/runtopoff", methods=["POST"])
+def update_run_topoff():
     payload = request.get_json(silent=True) or {}
     notes = payload.get("notes")
     duration = topoff_time_duration(payload.get("seconds"))
@@ -264,12 +285,12 @@ def update_topoff():
         """
     )
 
-    _log_action("topoff", notes)
+    _log_action("runtopoff", notes)
     db.commit()
 
     return jsonify({
         "ok": True,
-        "action": "topoff",
+        "action": "runtopoff",
         "notes": notes,
         "seconds": duration,
         "arduino_response": topoff_request.text.strip(),

@@ -12,6 +12,7 @@ from .api import (
     post_light_on,
     post_trimmed,
     post_topoff,
+    post_runtopoff,
     log_maintenance,
     list_maintenance,
     get_temperature_last_24_hours,
@@ -395,7 +396,8 @@ def main():
 
     sub.add_parser("fertilize", help="Mark tank as fertilized (timestamp now)")
     sub.add_parser("trimmed", help="Mark tank as trimmed (timestamp now)")
-    sub.add_parser("topoff", help="Mark last water topoff date (timestamp now)")
+    sub.add_parser("topoff", help="Manually mark last water topoff date (timestamp now)")
+    sub.add_parser("runtopoff", help="Run topoff using the Arduino sensor/pump")
     sub.add_parser("lighton", help="Turn the aquarium light on")
     sub.add_parser("lightoff", help="Turn the aquarium light off")
     sub.add_parser("lightstatus", help="Get the current aquarium light status")
@@ -501,12 +503,17 @@ def main():
         action_name = "trimmed"
 
     elif args.cmd == "topoff":
+        resp = post_topoff()
+        print("✅ Manual Topoff:", resp)
+        action_name = "topoff"
+
+    elif args.cmd == "runtopoff":
         seconds = prompt_topoff_seconds()
         if seconds is None:
             return
-        resp = post_topoff(seconds)
+        resp = post_runtopoff(seconds)
         print("✅ Water Restored:", resp)
-        action_name = "topoff"
+        action_name = "runtopoff"
 
     else:
         parser.print_help()
