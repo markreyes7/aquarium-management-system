@@ -10,6 +10,7 @@ __pycache__/
 *.pyd
 # Bytecode compiled files
 *.so
+*.egg-info/
 
 # Flask instance folder (if you use Flask instance config)
 instance/

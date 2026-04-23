@@ -52,7 +52,7 @@ def get_data():
         """
         SELECT temperature, recorded_at
         FROM temperature_log
-        ORDER BY recorded_at DESC, id DESC
+        ORDER BY id DESC
         LIMIT 1
         """
     ).fetchone()

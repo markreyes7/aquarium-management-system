@@ -9,7 +9,7 @@ bp = Blueprint("environment", __name__)
 
 
 def get_arduino_base_url():
-    return "http://192.168.1.100"
+    return os.getenv("AMS_ARDUINO_BASE_URL", "http://192.168.1.100").rstrip("/")
 
 @bp.route("/temp", methods=["GET"])
 def get_temp():
@@ -29,11 +29,18 @@ def log_temperature():
 
     db = get_db()
     db.execute(
+        "INSERT OR IGNORE INTO tank_status (id) VALUES (1)"
+    )
+    db.execute(
         "INSERT INTO temperature_log (temperature, recorded_at) VALUES (?, datetime('now', 'localtime'))",
         (temp,)
     )
-    
+    db.execute(
+        "UPDATE tank_status SET temperature = ? WHERE id = 1",
+        (temp,)
+    )
     db.commit()
+    return jsonify({"ok": True, "temperature": temp})
 
 @bp.route("/environment/temperature/logs", methods=["GET"])
 def get_temperature_logs():
@@ -77,7 +84,7 @@ def latest_temperature():
     db = get_db()
     row = db.execute(
         "SELECT temperature, recorded_at FROM temperature_log "
-        "ORDER BY recorded_at DESC LIMIT 1"
+        "ORDER BY id DESC LIMIT 1"
     ).fetchone()
     if row is None:
         return jsonify({"ok": True, "latest": None})
@@ -89,7 +96,7 @@ def update_temperature_status():
     db = get_db()
     row = db.execute(
         "SELECT temperature FROM temperature_log "
-        "ORDER BY recorded_at DESC LIMIT 1"
+        "ORDER BY id DESC LIMIT 1"
     ).fetchone()
     if row is None:
         return jsonify({"ok": False, "error": "No temperature data available"}), 404
