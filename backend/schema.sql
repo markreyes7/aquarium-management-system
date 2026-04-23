@@ -20,21 +20,21 @@ CREATE TABLE IF NOT EXISTS tank_status (
 CREATE TABLE IF NOT EXISTS temperature_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     temperature REAL NOT NULL,
-    recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    recorded_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
 -- Light state history
 CREATE TABLE IF NOT EXISTS light_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     state BOOLEAN NOT NULL CHECK (state IN (0, 1)),
-    recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    recorded_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS plants (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plant_type TEXT NOT NULL,
   in_tank BOOLEAN NOT NULL DEFAULT 1,
-  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  added_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
   removed_at TIMESTAMP,
   notes TEXT
 );
@@ -42,6 +42,6 @@ CREATE TABLE IF NOT EXISTS plants (
 CREATE TABLE IF NOT EXISTS maintenance_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
-  occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  occurred_at TIMESTAMP NOT NULL DEFAULT (datetime('now', 'localtime')),
   notes TEXT
 );

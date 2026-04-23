@@ -25,7 +25,7 @@ def record_light_state(state):
 
     db = get_db()
     db.execute(
-        "INSERT INTO light_log (state, recorded_at) VALUES (?, CURRENT_TIMESTAMP)",
+        "INSERT INTO light_log (state, recorded_at) VALUES (?, datetime('now', 'localtime'))",
         (normalized_state,)
     )
     db.execute(

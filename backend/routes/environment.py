@@ -29,7 +29,7 @@ def log_temperature():
 
     db = get_db()
     db.execute(
-        "INSERT INTO temperature_log (temperature) VALUES (?)",
+        "INSERT INTO temperature_log (temperature, recorded_at) VALUES (?, datetime('now', 'localtime'))",
         (temp,)
     )
     
@@ -64,7 +64,7 @@ def get_temperature_last_24_hours():
         """
         SELECT temperature, recorded_at
         FROM temperature_log
-        WHERE recorded_at >= datetime('now', '-24 hours')
+        WHERE recorded_at >= datetime('now', 'localtime', '-24 hours')
         ORDER BY recorded_at ASC
         """
     ).fetchall()

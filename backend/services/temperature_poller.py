@@ -58,7 +58,7 @@ def save_temperature_reading(temperature: float) -> None:
     try:
         conn.execute("INSERT OR IGNORE INTO tank_status (id) VALUES (1)")
         conn.execute(
-            "INSERT INTO temperature_log (temperature) VALUES (?)",
+            "INSERT INTO temperature_log (temperature, recorded_at) VALUES (?, datetime('now', 'localtime'))",
             (temperature,)
         )
         conn.execute(

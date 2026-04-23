@@ -161,7 +161,13 @@ def add_maintenance():
 
 def _log_action(action: str, notes: str | None = None) -> None:
     db = get_db()
-    db.execute("INSERT INTO maintenance_log (action, notes) VALUES (?, ?)", (action, notes))
+    db.execute(
+        """
+        INSERT INTO maintenance_log (action, occurred_at, notes)
+        VALUES (?, datetime('now', 'localtime'), ?)
+        """,
+        (action, notes),
+    )
 
 @bp.route("/update/fertilize", methods=["POST"])
 def update_fertilized():
@@ -174,7 +180,7 @@ def update_fertilized():
     db.execute(
         """
         UPDATE tank_status
-        SET last_fertilized = CURRENT_TIMESTAMP
+        SET last_fertilized = datetime('now', 'localtime')
         WHERE id = 1
         """
     )
@@ -194,7 +200,7 @@ def update_trimmed():
     db.execute(
         """
         UPDATE tank_status
-        SET last_trimmed = CURRENT_TIMESTAMP
+        SET last_trimmed = datetime('now', 'localtime')
         WHERE id = 1
         """
     )
@@ -215,7 +221,7 @@ def update_manual_topoff():
     db.execute(
         """
         UPDATE tank_status
-        SET last_water_topoff = CURRENT_TIMESTAMP
+        SET last_water_topoff = datetime('now', 'localtime')
         WHERE id = 1
         """
     )
@@ -280,7 +286,7 @@ def update_run_topoff():
     db.execute(
         """
         UPDATE tank_status
-        SET last_water_topoff = CURRENT_TIMESTAMP
+        SET last_water_topoff = datetime('now', 'localtime')
         WHERE id = 1
         """
     )
