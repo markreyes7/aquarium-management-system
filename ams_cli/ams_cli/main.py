@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import json
 
 from .api import (
+    base_url,
     get_data,
     get_light_status,
     post_light_auto,
@@ -16,6 +17,9 @@ from .api import (
     log_maintenance,
     list_maintenance,
     get_temperature_last_24_hours,
+    get_latest_water_parameters,
+    get_tank_profile,
+    use_dev_base_url,
 )
 
 ACCENT = "bold #8be9c1"
@@ -56,6 +60,108 @@ def _format_light_status(value) -> str:
     return str(value)
 
 
+def _format_water_value(value, suffix: str = "") -> str:
+    if value is None:
+        return "N/A"
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    formatted = f"{number:g}"
+    return f"{formatted}{suffix}"
+
+
+def _format_water_tested_at(row) -> str:
+    if not row:
+        return "N/A"
+    return _format_timestamp(row.get("tested_at"))
+
+
+def _print_water_parameters(row) -> None:
+    values = row or {}
+
+    print("Water Parameters")
+    print(f"Tested At: {_format_water_tested_at(values)}")
+    print(f"pH: {_format_water_value(values.get('ph'))}")
+    print(f"Ammonia: {_format_water_value(values.get('ammonia'), ' ppm')}")
+    print(f"Nitrite: {_format_water_value(values.get('nitrite'), ' ppm')}")
+    print(f"Nitrate: {_format_water_value(values.get('nitrate'), ' ppm')}")
+    print(f"GH: {_format_water_value(values.get('gh'), ' dGH')}")
+    print(f"KH: {_format_water_value(values.get('kh'), ' dKH')}")
+    print(f"TDS: {_format_water_value(values.get('tds'), ' ppm')}")
+    if values.get("notes"):
+        print(f"Notes: {values.get('notes')}")
+
+
+def _format_water_summary(row) -> str:
+    values = row or {}
+    tested_at = _format_water_tested_at(values)
+    ph = _format_water_value(values.get("ph"))
+    ammonia = _format_water_value(values.get("ammonia"), " ppm")
+    nitrite = _format_water_value(values.get("nitrite"), " ppm")
+    nitrate = _format_water_value(values.get("nitrate"), " ppm")
+    return (
+        f"{tested_at} | pH {ph} | NH3 {ammonia} | "
+        f"NO2 {nitrite} | NO3 {nitrate}"
+    )
+
+
+def _format_profile_temperature_range(profile) -> str:
+    if not profile:
+        return "N/A"
+
+    min_temp = profile.get("target_temperature_min")
+    max_temp = profile.get("target_temperature_max")
+    if min_temp is None and max_temp is None:
+        return "N/A"
+    if min_temp is None:
+        return f"up to {_format_water_value(max_temp)}F"
+    if max_temp is None:
+        return f"at least {_format_water_value(min_temp)}F"
+    return f"{_format_water_value(min_temp)}F - {_format_water_value(max_temp)}F"
+
+
+def _print_tank_profile(profile) -> None:
+    values = profile or {}
+
+    print("Tank Profile")
+    print(f"Size: {_format_water_value(values.get('size_gallons'), ' gal')}")
+    print(f"Water Type: {values.get('water_type') or 'N/A'}")
+    print(f"Target Temp: {_format_profile_temperature_range(values)}")
+    print(f"Lighting Schedule: {values.get('lighting_schedule') or 'N/A'}")
+    print(f"Setup Date: {values.get('setup_date') or 'N/A'}")
+    if values.get("notes"):
+        print(f"Notes: {values.get('notes')}")
+
+
+def _print_plain_status_demo(data) -> None:
+    latest_water = data.get("latest_water_parameters") or {}
+    tank_profile = data.get("tank_profile") or {}
+    recent_water = data.get("recent_water_parameters") or []
+
+    print("AMS Status Demo")
+    print(f"Backend: {base_url()}")
+    print("")
+    _print_tank_profile(tank_profile)
+    print("")
+    print(f"Current Temperature: {_format_temperature(data.get('temperature')).strip()}")
+    print(f"Light Status: {_format_light_status((data.get('latest_light') or {}).get('status', data.get('light_state')))}")
+    print(f"Last Fertilized: {_format_timestamp(data.get('last_fertilized'))}")
+    print(f"Last Trimmed: {_format_timestamp(data.get('last_trimmed'))}")
+    print(f"Last Topoff: {_format_timestamp(data.get('last_water_topoff'))}")
+    print("")
+    _print_water_parameters(latest_water)
+    print("")
+    print("Recent Water Parameter Log")
+    if not recent_water:
+        print("No water parameter logs recorded yet.")
+    else:
+        for row in recent_water:
+            print(f"- {_format_water_summary(row)}")
+
+
 def _with_live_light_status(data):
     enriched = dict(data)
     latest_light = dict(enriched.get("latest_light") or {})
@@ -82,14 +188,27 @@ def _build_status_table(data):
     from rich.text import Text
 
     status_table = Table.grid(expand=True)
-    status_table.add_column(style=ACCENT, no_wrap=False, width=18)
-    status_table.add_column(width=2)
-    status_table.add_column(style=SOFT_TEXT, no_wrap=True, min_width=12)
+    status_table.add_column(style=ACCENT, no_wrap=False, width=20)
+    status_table.add_column(width=3)
+    status_table.add_column(style=SOFT_TEXT, no_wrap=False, min_width=18)
 
     latest_temperature = data.get("latest_temperature") or {}
     latest_light = data.get("latest_light") or {}
+    latest_water = data.get("latest_water_parameters") or {}
+    tank_profile = data.get("tank_profile") or {}
 
-    status_table.add_row("Current Temperature" ,"", _format_temperature(data.get("temperature")))
+    status_table.add_row("Backend", "", base_url())
+    status_table.add_row("Tank Size", "", _format_water_value(tank_profile.get("size_gallons"), " gal"))
+    status_table.add_row("Water Type", "", tank_profile.get("water_type") or "N/A")
+    status_table.add_row("Target Temp", "", _format_profile_temperature_range(tank_profile))
+    status_table.add_row("Lighting", "", tank_profile.get("lighting_schedule") or "N/A")
+    status_table.add_row("Setup Date", "", tank_profile.get("setup_date") or "N/A")
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row(
+        "Current Temperature",
+        "",
+        _format_temperature(data.get("temperature")),
+    )
     status_table.add_row(Text(""), Text(""), Text(""))
     status_table.add_row(
         "Latest Temp Log",
@@ -139,6 +258,30 @@ def _build_status_table(data):
         "",
         data.get("latest_maintenance_note") or "No recent note",
     )
+    status_table.add_row(Text(""), Text(""), Text(""))
+    status_table.add_row("Water Tested", "", _format_water_tested_at(latest_water))
+    status_table.add_row("pH", "", _format_water_value(latest_water.get("ph")))
+    status_table.add_row(
+        "Ammonia",
+        "",
+        _format_water_value(latest_water.get("ammonia"), " ppm"),
+    )
+    status_table.add_row(
+        "Nitrite",
+        "",
+        _format_water_value(latest_water.get("nitrite"), " ppm"),
+    )
+    status_table.add_row(
+        "Nitrate",
+        "",
+        _format_water_value(latest_water.get("nitrate"), " ppm"),
+    )
+    gh_kh = (
+        f"{_format_water_value(latest_water.get('gh'), ' dGH')} / "
+        f"{_format_water_value(latest_water.get('kh'), ' dKH')}"
+    )
+    status_table.add_row("GH / KH", "", gh_kh)
+    status_table.add_row("TDS", "", _format_water_value(latest_water.get("tds"), " ppm"))
     return status_table
 
 
@@ -172,6 +315,8 @@ def _build_summary_table(data):
     plant_summary = data.get("plant_summary") or {}
     maintenance_summary = data.get("maintenance_summary") or {}
     latest_light = data.get("latest_light") or {}
+    latest_water = data.get("latest_water_parameters") or {}
+    tank_profile = data.get("tank_profile") or {}
 
     summary.add_row(
         "Plants",
@@ -186,10 +331,113 @@ def _build_summary_table(data):
         _format_timestamp(latest_light.get("recorded_at")),
     )
     summary.add_row(
+        "Profile",
+        tank_profile.get("water_type") or "N/A",
+    )
+    summary.add_row(
+        "Latest Water",
+        _format_water_tested_at(latest_water),
+    )
+    summary.add_row(
         "Tank Row",
         "Available" if data else "Missing",
     )
     return summary
+
+
+def _build_profile_panel(data):
+    from rich.panel import Panel
+    from rich.table import Table
+
+    tank_profile = data.get("tank_profile") or {}
+
+    profile = Table.grid(expand=True)
+    profile.add_column(style=ACCENT, no_wrap=True, width=18)
+    profile.add_column(style=SOFT_TEXT, no_wrap=False)
+    profile.add_row("Size", _format_water_value(tank_profile.get("size_gallons"), " gal"))
+    profile.add_row("Water Type", tank_profile.get("water_type") or "N/A")
+    profile.add_row("Target Temp", _format_profile_temperature_range(tank_profile))
+    profile.add_row("Lighting", tank_profile.get("lighting_schedule") or "N/A")
+    profile.add_row("Setup Date", tank_profile.get("setup_date") or "N/A")
+    if tank_profile.get("notes"):
+        profile.add_row("Notes", tank_profile.get("notes"))
+
+    return Panel(
+        profile,
+        title="tank profile",
+        title_align="left",
+        border_style=BORDER,
+        padding=(1, 3),
+        expand=True,
+    )
+
+
+def _build_live_vitals_panel(data):
+    from rich.panel import Panel
+    from rich.table import Table
+
+    latest_temperature = data.get("latest_temperature") or {}
+    latest_light = data.get("latest_light") or {}
+
+    vitals = Table.grid(expand=True)
+    vitals.add_column(style=ACCENT, no_wrap=True, width=18)
+    vitals.add_column(style=SOFT_TEXT, no_wrap=False)
+    vitals.add_row("Backend", base_url())
+    vitals.add_row("Current Temp", _format_temperature(data.get("temperature")).strip())
+    vitals.add_row("Latest Temp Log", _format_temperature(latest_temperature.get("temperature")).strip())
+    vitals.add_row("Temp Logged At", _format_timestamp(latest_temperature.get("recorded_at")))
+    vitals.add_row(
+        "Light",
+        _format_light_status(latest_light.get("status", data.get("light_state"))),
+    )
+    vitals.add_row("Last Fertilized", _format_timestamp(data.get("last_fertilized")))
+    vitals.add_row("Last Trimmed", _format_timestamp(data.get("last_trimmed")))
+    vitals.add_row("Last Topoff", _format_timestamp(data.get("last_water_topoff")))
+    vitals.add_row("Latest Note", data.get("latest_maintenance_note") or "No recent note")
+
+    return Panel(
+        vitals,
+        title="current vitals",
+        title_align="left",
+        border_style=BORDER,
+        padding=(1, 3),
+        expand=True,
+    )
+
+
+def _build_latest_water_panel(data):
+    from rich.panel import Panel
+    from rich.table import Table
+
+    latest_water = data.get("latest_water_parameters") or {}
+
+    water = Table.grid(expand=True)
+    water.add_column(style=ACCENT, no_wrap=True, width=18)
+    water.add_column(style=SOFT_TEXT, no_wrap=False)
+    water.add_row("Tested", _format_water_tested_at(latest_water))
+    water.add_row("pH", _format_water_value(latest_water.get("ph")))
+    water.add_row("Ammonia", _format_water_value(latest_water.get("ammonia"), " ppm"))
+    water.add_row("Nitrite", _format_water_value(latest_water.get("nitrite"), " ppm"))
+    water.add_row("Nitrate", _format_water_value(latest_water.get("nitrate"), " ppm"))
+    water.add_row(
+        "GH / KH",
+        (
+            f"{_format_water_value(latest_water.get('gh'), ' dGH')} / "
+            f"{_format_water_value(latest_water.get('kh'), ' dKH')}"
+        ),
+    )
+    water.add_row("TDS", _format_water_value(latest_water.get("tds"), " ppm"))
+    if latest_water.get("notes"):
+        water.add_row("Notes", latest_water.get("notes"))
+
+    return Panel(
+        water,
+        title="latest water parameters",
+        title_align="left",
+        border_style=BORDER,
+        padding=(1, 3),
+        expand=True,
+    )
 
 
 def _build_recent_maintenance_panel(data):
@@ -218,6 +466,43 @@ def _build_recent_maintenance_panel(data):
                 row.get("notes") or "-",
             )
     return recent
+
+
+def _build_recent_water_panel(data):
+    from rich.table import Table
+
+    water = Table(
+        show_header=True,
+        header_style=DETAIL,
+        box=None,
+        pad_edge=False,
+        expand=False,
+        padding=(0, 2),
+    )
+    water.add_column("tested", style=SOFT_TEXT, no_wrap=False, ratio=2)
+    water.add_column("readings", style=ACCENT, no_wrap=False, ratio=4)
+    water.add_column("notes", style=MUTED_TEXT, no_wrap=False, ratio=2)
+
+    rows = data.get("recent_water_parameters") or []
+    if not rows:
+        water.add_row("N/A", "No water parameter logs recorded yet", "-")
+    else:
+        for row in rows:
+            readings = (
+                f"pH {_format_water_value(row.get('ph'))}; "
+                f"NH3 {_format_water_value(row.get('ammonia'), ' ppm')}; "
+                f"NO2 {_format_water_value(row.get('nitrite'), ' ppm')}; "
+                f"NO3 {_format_water_value(row.get('nitrate'), ' ppm')}; "
+                f"GH/KH {_format_water_value(row.get('gh'))}/"
+                f"{_format_water_value(row.get('kh'))}; "
+                f"TDS {_format_water_value(row.get('tds'), ' ppm')}"
+            )
+            water.add_row(
+                _format_water_tested_at(row),
+                readings,
+                row.get("notes") or "-",
+            )
+    return water
 
 
 def _build_nav_bar():
@@ -257,43 +542,40 @@ def _build_status_dashboard(data, console_width: int):
     from rich.align import Align
     from rich.console import Group
     from rich.panel import Panel
-    from rich.table import Table
     from rich.text import Text
 
-    dashboard_width = max(90, console_width - 4)
+    dashboard_width = min(112, max(76, console_width - 2))
 
-    top_content = Table.grid(expand=True)
-    top_content.add_column(ratio=5, min_width=34)
-    top_content.add_column(ratio=3, min_width=20)
-    top_content.add_column(ratio=4, min_width=28)
-
-    top_content.add_row(
-        Text("~ tank ~", style=ACCENT),
-        _build_welcome_panel(),
-        Text("~ summary ~", style=ACCENT),
-    )
-    top_content.add_row(
-        _build_status_table(data),
+    top_content = Group(
+        Text("~ tank profile ~", style=ACCENT, justify="center"),
+        _build_profile_panel(data),
         Text(""),
-        Panel(
-            _build_summary_table(data),
-            title="summary",
-            title_align="left",
-            border_style=BORDER,
-            padding=(1, 2),
-            expand=False,
-        ),
+        Text("~ live vitals ~", style=ACCENT, justify="center"),
+        _build_live_vitals_panel(data),
+        Text(""),
+        Text("~ water snapshot ~", style=ACCENT, justify="center"),
+        _build_latest_water_panel(data),
     )
 
     recent_activity = Group(
-        Text("~ recent activity ~", style=ACCENT),
+        Text("~ recent activity ~", style=ACCENT, justify="center"),
         Text(
-            "pulling from tank_status, temperature_log, light_log, plants, maintenance_log",
+            "pulling from tank_status, tank_profile, water_parameter_log, temperature_log, light_log, plants, maintenance_log",
             style=MUTED_TEXT,
+            justify="center",
         ),
         Text(""),
         Panel(
             _build_recent_maintenance_panel(data),
+            border_style=BORDER,
+            padding=(1, 2),
+            expand=True,
+        ),
+        Text(""),
+        Text("~ water parameter log ~", style=ACCENT, justify="center"),
+        Text(""),
+        Panel(
+            _build_recent_water_panel(data),
             border_style=BORDER,
             padding=(1, 2),
             expand=True,
@@ -303,12 +585,15 @@ def _build_status_dashboard(data, console_width: int):
     centered_group = Group(
         _build_nav_bar(),
         Text(""),
+        Text("AMS STATUS DEMO", style=WARM_TEXT, justify="center"),
+        Text("calm dev dashboard", style=MUTED_TEXT, justify="center"),
+        Text(""),
         top_content,
         Text(""),
         recent_activity,
         Text(""),
-        Text("live aquarium command center", style=WARM_TEXT, justify="center"),
-        Text("~" * 76, style=DETAIL, justify="center"),
+        Text("live aquarium command center", style=MUTED_TEXT, justify="center"),
+        Text("~" * max(24, dashboard_width - 18), style=DETAIL, justify="center"),
         _build_footer(),
     )
 
@@ -325,19 +610,20 @@ def _build_status_dashboard(data, console_width: int):
 
 def show_status_ui() -> None:
     try:
-        from rich.console import Console
-    except ImportError:
-        print(".....")
-        return
-
-    console = Console()
-    try:
         data = get_data()
     except Exception as exc:
         print(f"Unable to load dashboard data: {exc}")
         return
 
     data = _with_live_light_status(data)
+
+    try:
+        from rich.console import Console
+    except ImportError:
+        _print_plain_status_demo(data)
+        return
+
+    console = Console()
 
     console.print(_build_status_dashboard(data, console.width))
 
@@ -389,6 +675,11 @@ def prompt_topoff_seconds() -> float | None:
 
 def main():
     parser = argparse.ArgumentParser(prog="ams", description="Aquarium Management CLI")
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Use the local development backend at http://127.0.0.1:3002",
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("status", help="Show current tank status")
@@ -402,6 +693,16 @@ def main():
     sub.add_parser("lightoff", help="Turn the aquarium light off")
     sub.add_parser("lightstatus", help="Get the current aquarium light status")
     sub.add_parser("lightauto", help="Return the aquarium light to auto mode")
+    sub.add_parser(
+        "waterparams",
+        aliases=["water-parameters"],
+        help="Show the latest logged water parameters",
+    )
+    sub.add_parser(
+        "tankprofile",
+        aliases=["tank-profile"],
+        help="Show the configured tank profile",
+    )
 
     p_logs = sub.add_parser(
         "logs",
@@ -417,6 +718,9 @@ def main():
 
     args = parser.parse_args()
 
+    if args.dev:
+        use_dev_base_url()
+
     if args.cmd == "status":
         data = get_data()
         print(json.dumps(data, indent=2))
@@ -429,6 +733,16 @@ def main():
     if args.cmd in ("logs", "maintenance"):
         rows = list_maintenance(limit=args.limit)
         print(json.dumps(rows, indent=2))
+        return
+
+    if args.cmd in ("waterparams", "water-parameters"):
+        resp = get_latest_water_parameters()
+        _print_water_parameters(resp.get("latest"))
+        return
+
+    if args.cmd in ("tankprofile", "tank-profile"):
+        resp = get_tank_profile()
+        _print_tank_profile(resp.get("tank_profile"))
         return
 
     if args.cmd == "temp24":

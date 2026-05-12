@@ -6,17 +6,26 @@ from pathlib import Path
 
 import requests
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATABASE = BASE_DIR / "aquarium.db"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from config import get_arduino_base_url, get_database_path
 
 DEFAULT_SENSOR_URL = "http://192.168.1.100/temp"
 DEFAULT_POLL_INTERVAL_SECONDS = 600
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
 
 
-"""this needs to be reworked. needs better optimization"""
+"""this is now checking to see if we are in prod or dev"""
 def sensor_url() -> str:
-    return os.getenv("AMS_TEMPERATURE_SENSOR_URL", DEFAULT_SENSOR_URL)
+    configured_sensor_url = os.getenv("AMS_TEMPERATURE_SENSOR_URL")
+    if configured_sensor_url:
+        return configured_sensor_url
+
+    configured_base_url = os.getenv("AMS_ARDUINO_BASE_URL")
+    if configured_base_url:
+        return f"{get_arduino_base_url()}/temp"
+
+    return DEFAULT_SENSOR_URL
 
 
 def poll_interval_seconds() -> int:
@@ -54,7 +63,7 @@ def fetch_current_temperature() -> float:
 
 
 def save_temperature_reading(temperature: float) -> None:
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(get_database_path())
     try:
         conn.execute("INSERT OR IGNORE INTO tank_status (id) VALUES (1)")
         conn.execute(
@@ -74,7 +83,7 @@ def run_temperature_poller() -> None:
     interval = poll_interval_seconds()
     print(f"Temperature poller running every {interval}s")
     print(f"Sensor URL: {sensor_url()}")
-    print(f"Database: {DATABASE}")
+    print(f"Database: {get_database_path()}")
 
     while True:
         try:

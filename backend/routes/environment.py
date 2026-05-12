@@ -1,15 +1,10 @@
-import os
-
 import requests
 from flask import Blueprint, jsonify, request
+from config import get_arduino_base_url
 from db import get_db
 from light_state import normalize_light_state, record_light_state
 
 bp = Blueprint("environment", __name__)
-
-
-def get_arduino_base_url():
-    return os.getenv("AMS_ARDUINO_BASE_URL", "http://192.168.1.100").rstrip("/")
 
 @bp.route("/temp", methods=["GET"])
 def get_temp():

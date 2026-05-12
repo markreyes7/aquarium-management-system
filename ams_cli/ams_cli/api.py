@@ -8,6 +8,10 @@ DEFAULT_BASE_URL = "http://127.0.0.1:3001"
 def base_url() -> str:
     return os.getenv("AMS_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
+
+def use_dev_base_url() -> None:
+    os.environ["AMS_BASE_URL"] = "http://127.0.0.1:3002"
+
 def _get(path: str, *, params: Optional[dict] = None) -> Any:
     url = f"{base_url()}{path}"
     r = requests.get(url, params=params, timeout=8)
@@ -66,6 +70,18 @@ def get_temperature_last_24_hours() -> List[Dict[str, Any]]:
 
 def update_temperature_status() -> Dict[str, Any]:
     return _post("/update/temperature")
+
+
+def get_latest_water_parameters() -> Dict[str, Any]:
+    return _get("/water-parameters/latest")
+
+
+def list_water_parameters(limit: int = 20) -> List[Dict[str, Any]]:
+    return _get("/water-parameters", params={"limit": limit})
+
+
+def get_tank_profile() -> Dict[str, Any]:
+    return _get("/tank-profile")
 
 
 def post_light_on() -> Dict[str, Any]:

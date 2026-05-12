@@ -1,15 +1,14 @@
 import sqlite3
 from flask import g
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE = BASE_DIR / "aquarium.db"
+from config import get_database_path
 
 def get_db():
-    print("Using DB at:", DATABASE)
+    database = get_database_path()
+    print("Using DB at:", database)
     if "db" not in g:
         g.db = sqlite3.connect(
-            DATABASE,
+            database,
             detect_types=sqlite3.PARSE_DECLTYPES
         )
         g.db.row_factory = sqlite3.Row

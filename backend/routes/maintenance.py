@@ -1,6 +1,7 @@
 from datetime import datetime
 import requests
 from flask import Blueprint, jsonify, request
+from config import get_arduino_base_url
 from db import get_db
 from typing import Any, Dict, List, Optional
 
@@ -19,9 +20,6 @@ def _format_topoff_timestamp(timestamp: Optional[str]) -> Optional[str]:
         return timestamp
 
 
-def get_arduino_base_url() -> str:
-    return "http://192.168.1.100"
-
 # Optional: keep welcome route if you want
 @bp.route("/", methods=["GET"])
 def welcome():
@@ -33,6 +31,17 @@ def get_data():
     db = get_db()
     row = db.execute("SELECT * FROM tank_status WHERE id = 1").fetchone()
     data = dict(row) if row else {}
+
+    tank_profile_row = db.execute(
+        """
+        SELECT id, size_gallons, water_type, target_temperature_min,
+               target_temperature_max, lighting_schedule, setup_date, notes,
+               updated_at
+        FROM tank_profile
+        WHERE id = 1
+        """
+    ).fetchone()
+    data["tank_profile"] = dict(tank_profile_row) if tank_profile_row else None
 
     latest_note_row = db.execute(
         """
@@ -109,6 +118,30 @@ def get_data():
         """
     ).fetchall()
     data["recent_maintenance"] = [dict(row) for row in recent_maintenance_rows]
+
+    latest_water_parameters_row = db.execute(
+        """
+        SELECT id, ph, ammonia, nitrite, nitrate, gh, kh, tds, tested_at, notes
+        FROM water_parameter_log
+        ORDER BY tested_at DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    data["latest_water_parameters"] = (
+        dict(latest_water_parameters_row) if latest_water_parameters_row else None
+    )
+
+    recent_water_parameter_rows = db.execute(
+        """
+        SELECT id, ph, ammonia, nitrite, nitrate, gh, kh, tds, tested_at, notes
+        FROM water_parameter_log
+        ORDER BY tested_at DESC, id DESC
+        LIMIT 5
+        """
+    ).fetchall()
+    data["recent_water_parameters"] = [
+        dict(row) for row in recent_water_parameter_rows
+    ]
 
     return jsonify(data)
 
