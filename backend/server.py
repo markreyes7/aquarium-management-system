@@ -1,6 +1,7 @@
 from flask import Flask
 from config import get_server_host, get_server_port
 from db import close_db
+from init_db import init_database
 
 from routes.maintenance import bp as maintenance_bp
 from routes.environment import bp as environment_bp
@@ -8,6 +9,7 @@ from routes.water_parameters import bp as water_parameters_bp
 from routes.tank_profile import bp as tank_profile_bp
 
 def create_app():
+    init_database()
     app = Flask(__name__)
 
     # DB connection cleanup

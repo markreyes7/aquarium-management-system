@@ -31,6 +31,72 @@ def init_database() -> None:
         conn.execute("ALTER TABLE tank_status ADD COLUMN temperature REAL")
     if "light_state" not in tank_status_cols:
         conn.execute("ALTER TABLE tank_status ADD COLUMN light_state BOOLEAN")
+    if "light_timer_enabled" not in tank_status_cols:
+        conn.execute(
+            "ALTER TABLE tank_status ADD COLUMN light_timer_enabled BOOLEAN DEFAULT 0"
+        )
+    if "notes" not in tank_status_cols:
+        conn.execute("ALTER TABLE tank_status ADD COLUMN notes TEXT")
+
+    existing_tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+    if "tank_profile" not in existing_tables:
+        conn.execute(
+            """
+            CREATE TABLE tank_profile (
+              id INTEGER PRIMARY KEY CHECK (id = 1),
+              size_gallons REAL CHECK (size_gallons IS NULL OR size_gallons > 0),
+              water_type TEXT CHECK (
+                water_type IS NULL OR water_type IN (
+                  'freshwater',
+                  'saltwater',
+                  'brackish'
+                )
+              ),
+              target_temperature_min REAL,
+              target_temperature_max REAL,
+              lighting_schedule TEXT,
+              setup_date TEXT,
+              notes TEXT,
+              updated_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+              CHECK (
+                target_temperature_min IS NULL
+                OR target_temperature_max IS NULL
+                OR target_temperature_min <= target_temperature_max
+              )
+            )
+            """
+        )
+    if "water_parameter_log" not in existing_tables:
+        conn.execute(
+            """
+            CREATE TABLE water_parameter_log (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ph REAL CHECK (ph IS NULL OR (ph >= 0 AND ph <= 14)),
+              ammonia REAL CHECK (ammonia IS NULL OR ammonia >= 0),
+              nitrite REAL CHECK (nitrite IS NULL OR nitrite >= 0),
+              nitrate REAL CHECK (nitrate IS NULL OR nitrate >= 0),
+              gh REAL CHECK (gh IS NULL OR gh >= 0),
+              kh REAL CHECK (kh IS NULL OR kh >= 0),
+              tds REAL CHECK (tds IS NULL OR tds >= 0),
+              tested_at TIMESTAMP NOT NULL DEFAULT (datetime('now', 'localtime')),
+              notes TEXT,
+              CHECK (
+                ph IS NOT NULL
+                OR ammonia IS NOT NULL
+                OR nitrite IS NOT NULL
+                OR nitrate IS NOT NULL
+                OR gh IS NOT NULL
+                OR kh IS NOT NULL
+                OR tds IS NOT NULL
+              )
+            )
+            """
+        )
 
     maintenance_cols = {
         row[1] for row in conn.execute("PRAGMA table_info(maintenance_log)").fetchall()
@@ -38,6 +104,10 @@ def init_database() -> None:
     if "notes" not in maintenance_cols and "note" in maintenance_cols:
         conn.execute("ALTER TABLE maintenance_log ADD COLUMN notes TEXT")
         conn.execute("UPDATE maintenance_log SET notes = note WHERE notes IS NULL")
+
+    conn.execute(
+        "INSERT OR IGNORE INTO tank_profile (id) VALUES (1)"
+    )
 
     conn.commit()
     conn.close()
