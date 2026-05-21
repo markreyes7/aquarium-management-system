@@ -7,6 +7,7 @@ from routes.maintenance import bp as maintenance_bp
 from routes.environment import bp as environment_bp
 from routes.water_parameters import bp as water_parameters_bp
 from routes.tank_profile import bp as tank_profile_bp
+from routes.livestock import bp as livestock_bp
 
 def create_app():
     init_database()
@@ -19,6 +20,7 @@ def create_app():
     app.register_blueprint(environment_bp)
     app.register_blueprint(water_parameters_bp)
     app.register_blueprint(tank_profile_bp)
+    app.register_blueprint(livestock_bp)
 
     return app
 

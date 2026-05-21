@@ -91,7 +91,7 @@ def _validate_payload(payload):
     return values, None
 
 
-@bp.route("/tank-profile", methods=["GET"])
+@bp.route("/tankprofile", methods=["GET"])
 def get_tank_profile():
     db = get_db()
     db.execute("INSERT OR IGNORE INTO tank_profile (id) VALUES (1)")
@@ -110,7 +110,7 @@ def get_tank_profile():
     return jsonify({"ok": True, "tank_profile": _row_to_dict(row)})
 
 
-@bp.route("/tank-profile", methods=["PUT", "PATCH"])
+@bp.route("/update/tankprofile", methods=["PUT", "PATCH"])
 def update_tank_profile():
     payload = request.get_json(force=True)
     values, error = _validate_payload(payload)
@@ -145,3 +145,4 @@ def update_tank_profile():
     ).fetchone()
 
     return jsonify({"ok": True, "tank_profile": _row_to_dict(row)})
+

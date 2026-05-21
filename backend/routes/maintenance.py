@@ -20,12 +20,12 @@ def _format_topoff_timestamp(timestamp: Optional[str]) -> Optional[str]:
         return timestamp
 
 
-# Optional: keep welcome route if you want
+# i just like this to check if server is up
 @bp.route("/", methods=["GET"])
 def welcome():
     return "Welcome to the best aquarium API"
 
-
+# this is for checking everything related to the aquarium. not optimal or maybe not necessary but i will leave it
 @bp.route("/data", methods=["GET"])
 def get_data():
     db = get_db()
@@ -96,6 +96,16 @@ def get_data():
         "total_plants": plant_summary_row["total_plants"] if plant_summary_row else 0,
         "plants_in_tank": plant_summary_row["plants_in_tank"] if plant_summary_row and plant_summary_row["plants_in_tank"] is not None else 0,
     }
+
+    livestock_rows = db.execute(
+        """
+        SELECT id, common_name, quantity
+        FROM livestock
+        WHERE in_tank = 1
+        ORDER BY common_name COLLATE NOCASE, id
+        """
+    ).fetchall()
+    data["livestock"] = [dict(row) for row in livestock_rows]
 
     maintenance_summary_row = db.execute(
         """
@@ -264,7 +274,7 @@ def update_manual_topoff():
 
     return jsonify({"ok": True, "action": "topoff", "notes": notes})
 
-
+# still need to confirm this works.
 @bp.route("/update/runtopoff", methods=["POST"])
 def update_run_topoff():
     payload = request.get_json(silent=True) or {}

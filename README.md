@@ -1,8 +1,33 @@
 # Aquarium Management System
 
-Simple local setup and run commands.
+Aquarium Management System is a local command center for tracking an aquarium's health, maintenance, livestock, and environment. It combines a Flask backend, a SQLite database, Arduino/mock hardware controls, and a terminal dashboard built for quick daily checks.
 
-## Backend setup
+The project is designed around one simple loop: log what changed, watch the trend, and make better tank decisions.
+
+## What AMS Tracks
+
+- Tank profile: size, water type, temperature target, lighting schedule, setup date, notes
+- Water parameters: pH, ammonia, nitrite, nitrate, GH, KH, TDS
+- Livestock: current in-tank animals by common name and quantity
+- Maintenance: fertilizer, trimming, topoff, pump topoff, notes
+- Environment: temperature history and light state
+- Dashboard: a Rich-powered `ams status` view for the current tank snapshot
+
+## Project Layout
+
+```text
+backend/                  Flask API, database schema, Arduino integration
+backend/routes/           Route modules for tank profile, livestock, water, environment, maintenance
+backend/schema.sql        SQLite schema
+ams_cli/ams_cli/          Command-line app
+ams_cli/ams_cli/main.py   CLI command routing and prompts
+ams_cli/ams_cli/status_dashboard.py
+                           Status dashboard rendering
+```
+
+## Backend Setup
+
+From the project root:
 
 ```bash
 cd backend
@@ -13,17 +38,21 @@ python3 init_db.py
 python3 server.py
 ```
 
-Production-style backend runs on:
+Production-style backend:
 
 ```text
 http://127.0.0.1:3001
 ```
 
-By default, production-style Arduino calls still target `http://192.168.1.100`.
+By default, production-style Arduino calls target:
 
-## Safe local development
+```text
+http://192.168.1.100
+```
 
-Use this flow when you do not want this machine to touch the production Arduino/server.
+## Safe Local Development
+
+Use the development flow when you do not want this machine to touch the real Arduino.
 
 Terminal 1, run the fake Arduino:
 
@@ -41,106 +70,127 @@ source .venv/bin/activate
 python3 dev_server.py
 ```
 
-The development backend runs on:
+Development backend:
 
 ```text
 http://127.0.0.1:3002
 ```
 
-The development setup uses:
+Development defaults:
 
 ```text
 Database: backend/aquarium-dev.db
 Arduino target: http://127.0.0.1:3999
 ```
 
-For CLI commands against the dev backend:
-
-```bash
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status-demo
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev lightstatus
-```
-
-Environment overrides:
-
-```text
-AMS_DATABASE=/path/to/dev.db
-AMS_ARDUINO_BASE_URL=http://127.0.0.1:3999
-AMS_SERVER_HOST=127.0.0.1
-AMS_SERVER_PORT=3002
-```
-
-## Quick checks
-
-```bash
-curl http://127.0.0.1:3001/
-curl http://127.0.0.1:3001/data
-```
-
-Development quick checks:
-
-```bash
-curl http://127.0.0.1:3999/light/currentStatus
-curl http://127.0.0.1:3002/
-curl http://127.0.0.1:3002/data
-curl -X POST http://127.0.0.1:3002/environment/light/on
-curl -X POST http://127.0.0.1:3002/update/runtopoff \
-  -H 'Content-Type: application/json' \
-  -d '{"seconds":1,"notes":"dev mock topoff"}'
-```
-
-## Tank profile
-
-View the tank profile:
-
-```bash
-curl http://127.0.0.1:3002/tank-profile
-```
-
-Update the tank profile:
-
-```bash
-curl -X PATCH http://127.0.0.1:3002/tank-profile \
-  -H 'Content-Type: application/json' \
-  -d '{"size_gallons":10,"water_type":"freshwater","target_temperature_min":72,"target_temperature_max":78,"lighting_schedule":"10:00-18:00","setup_date":"2026-05-07","notes":"Development profile"}'
-```
-
 ## CLI
 
-From the project root:
+Run commands from the project root:
 
 ```bash
 source backend/.venv/bin/activate
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main status
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status
 ```
 
-More commands:
+Use `--dev` for the local development backend on port `3002`. Omit `--dev` for the production-style backend on port `3001`.
+
+Core commands:
 
 ```bash
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main status-demo
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status-demo
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main waterparams
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main tankprofile
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main logs --limit 10
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main lightstatus
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main lighton
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main lightoff
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main lightauto
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main fertilize
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main trimmed
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main topoff
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main runtopoff
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev status-json
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev tankprofile
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev updatetankprofile
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev waterparams
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev livestock
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev addlivestock
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev removelivestock
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev logs --limit 10
+```
+
+Hardware and maintenance commands:
+
+```bash
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev lightstatus
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev lighton
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev lightoff
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev lightauto
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev fertilize
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev trimmed
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev topoff
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev runtopoff
 ```
 
 Optional graph command:
 
 ```bash
 pip install plotext
-PYTHONPATH=. python3 -m ams_cli.ams_cli.main temp24
+PYTHONPATH=. python3 -m ams_cli.ams_cli.main --dev temp24
 ```
 
-## Temperature poller
+## API Quick Checks
+
+Production-style:
+
+```bash
+curl http://127.0.0.1:3001/
+curl http://127.0.0.1:3001/data
+```
+
+Development:
+
+```bash
+curl http://127.0.0.1:3999/light/currentStatus
+curl http://127.0.0.1:3002/
+curl http://127.0.0.1:3002/data
+curl http://127.0.0.1:3002/livestock
+```
+
+## Tank Profile API
+
+View the tank profile:
+
+```bash
+curl http://127.0.0.1:3002/tankprofile
+```
+
+Update the tank profile:
+
+```bash
+curl -X PUT http://127.0.0.1:3002/update/tankprofile \
+  -H 'Content-Type: application/json' \
+  -d '{"size_gallons":10,"water_type":"freshwater","target_temperature_min":72,"target_temperature_max":78,"lighting_schedule":"10:00-18:00","setup_date":"2026-05-07","notes":"Development profile"}'
+```
+
+## Livestock API
+
+Add livestock:
+
+```bash
+curl -X POST http://127.0.0.1:3002/livestock \
+  -H 'Content-Type: application/json' \
+  -d '{"common_name":"Cherry shrimp","livestock_type":"shrimp","quantity":10}'
+```
+
+Remove livestock from the tank:
+
+```bash
+curl -X POST http://127.0.0.1:3002/livestock/remove \
+  -H 'Content-Type: application/json' \
+  -d '{"common_name":"Cherry shrimp","quantity":3}'
+```
+
+## Environment Overrides
+
+```text
+AMS_DATABASE=/path/to/dev.db
+AMS_ARDUINO_BASE_URL=http://127.0.0.1:3999
+AMS_SERVER_HOST=127.0.0.1
+AMS_SERVER_PORT=3002
+AMS_BASE_URL=http://127.0.0.1:3002
+```
+
+## Temperature Poller
 
 ```bash
 cd backend

@@ -27,6 +27,17 @@ def _post(path: str, *, json: Optional[dict] = None) -> Any:
     except ValueError:
         return {"ok": True, "raw": r.text}
 
+
+# added to change tank profile table when needed.
+def _put(path: str, *, json: Optional[dict] = None) -> Any:
+    url = f"{base_url()}{path}"
+    r = requests.put(url, json=json, timeout=8)
+    r.raise_for_status()
+    try:
+        return r.json()
+    except ValueError:
+        return {"ok": True, "raw": r.text}
+
 # ---- names main.py imports ----
 def get_data() -> Dict[str, Any]:
     return _get("/data")
@@ -80,8 +91,24 @@ def list_water_parameters(limit: int = 20) -> List[Dict[str, Any]]:
     return _get("/water-parameters", params={"limit": limit})
 
 
+def list_livestock(in_tank: bool = True) -> Dict[str, Any]:
+    return _get("/livestock", params={"in_tank": "true" if in_tank else "all"})
+
+
+def add_livestock(livestock: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("/livestock", json=livestock)
+
+
+def remove_livestock(livestock: Dict[str, Any]) -> Dict[str, Any]:
+    return _post("/livestock/remove", json=livestock)
+
+
 def get_tank_profile() -> Dict[str, Any]:
-    return _get("/tank-profile")
+    return _get("/tankprofile")
+
+
+def update_tank_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
+    return _put("/update/tankprofile", json=profile)
 
 
 def post_light_on() -> Dict[str, Any]:

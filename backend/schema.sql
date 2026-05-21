@@ -62,6 +62,27 @@ CREATE TABLE IF NOT EXISTS plants (
   notes TEXT
 );
 
+CREATE TABLE IF NOT EXISTS livestock (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  common_name TEXT NOT NULL,
+  species_name TEXT,
+  livestock_type TEXT CHECK (
+    livestock_type IS NULL OR livestock_type IN (
+      'fish',
+      'shrimp',
+      'snail',
+      'crab',
+      'coral',
+      'other'
+    )
+  ),
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  in_tank BOOLEAN NOT NULL DEFAULT 1 CHECK (in_tank IN (0, 1)),
+  added_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
+  removed_at TIMESTAMP,
+  notes TEXT
+);
+
 CREATE TABLE IF NOT EXISTS maintenance_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,

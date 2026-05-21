@@ -138,3 +138,6 @@ def add_water_parameters():
     ).fetchone()
 
     return jsonify({"ok": True, "water_parameters": dict(row)}), 201
+
+
+#TODO UPDATE waterparams. should this be separated when we cal
