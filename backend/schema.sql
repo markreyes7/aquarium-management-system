@@ -90,6 +90,17 @@ CREATE TABLE IF NOT EXISTS maintenance_log (
   notes TEXT
 );
 
+CREATE TABLE IF NOT EXISTS topoff_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL CHECK (source IN ('manual', 'pump')),
+  requested_seconds REAL,
+  status TEXT NOT NULL CHECK (status IN ('requested', 'completed', 'failed')),
+  notes TEXT,
+  arduino_response TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT (datetime('now', 'localtime')),
+  completed_at TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS water_parameter_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ph REAL CHECK (ph IS NULL OR (ph >= 0 AND ph <= 14)),

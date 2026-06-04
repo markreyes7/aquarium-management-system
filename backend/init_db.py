@@ -97,6 +97,21 @@ def init_database() -> None:
             )
             """
         )
+    if "topoff_log" not in existing_tables:
+        conn.execute(
+            """
+            CREATE TABLE topoff_log (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              source TEXT NOT NULL CHECK (source IN ('manual', 'pump')),
+              requested_seconds REAL,
+              status TEXT NOT NULL CHECK (status IN ('requested', 'completed', 'failed')),
+              notes TEXT,
+              arduino_response TEXT,
+              created_at TIMESTAMP NOT NULL DEFAULT (datetime('now', 'localtime')),
+              completed_at TIMESTAMP
+            )
+            """
+        )
 
     maintenance_cols = {
         row[1] for row in conn.execute("PRAGMA table_info(maintenance_log)").fetchall()

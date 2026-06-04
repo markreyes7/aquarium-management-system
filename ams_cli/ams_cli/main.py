@@ -6,6 +6,7 @@ import json
 from .api import (
     get_data,
     get_light_status,
+    get_topoff_status,
     post_light_auto,
     post_fertilize,
     post_light_off,
@@ -13,7 +14,6 @@ from .api import (
     post_trimmed,
     post_topoff,
     post_runtopoff,
-    log_maintenance,
     list_maintenance,
     add_livestock,
     list_livestock,
@@ -328,8 +328,9 @@ def prompt_note(action_name: str) -> str | None:
 
 def prompt_topoff_seconds() -> float | None:
     try:
-        data = get_data()
-        last_topoff = data.get("last_water_topoff")
+        payload = get_topoff_status()
+        topoff = payload.get("topoff") or {}
+        last_topoff = topoff.get("last_water_topoff_display")
     except Exception:
         last_topoff = None
 
@@ -546,36 +547,35 @@ def main():
         return
 
     elif args.cmd == "fertilize":
-        resp = post_fertilize()
+        notes = prompt_note("fertilize")
+        resp = post_fertilize(notes)
         print("✅ Fertilized:", resp)
-        action_name = "fertilize"
+        return
 
     elif args.cmd == "trimmed":
-        resp = post_trimmed()
+        notes = prompt_note("trimmed")
+        resp = post_trimmed(notes)
         print("✅ Trimmed:", resp)
-        action_name = "trimmed"
+        return
 
     elif args.cmd == "topoff":
-        resp = post_topoff()
+        notes = prompt_note("topoff")
+        resp = post_topoff(notes)
         print("✅ Manual Topoff:", resp)
-        action_name = "topoff"
+        return
 
     elif args.cmd == "runtopoff":
         seconds = prompt_topoff_seconds()
         if seconds is None:
             return
-        resp = post_runtopoff(seconds)
+        notes = prompt_note("runtopoff")
+        resp = post_runtopoff(seconds, notes)
         print("✅ Water Restored:", resp)
-        action_name = "runtopoff"
+        return
 
     else:
         parser.print_help()
         return
-
-    # Prompt for an optional note, then always log the action
-    notes = prompt_note(action_name)
-    log_resp = log_maintenance(action_name, notes=notes)
-    print("📝 Logged:", json.dumps(log_resp, indent=2))
 
 
 if __name__ == "__main__":

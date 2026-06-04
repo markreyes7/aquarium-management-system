@@ -2,6 +2,7 @@
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 #include "sensors.h"
+#include "topoff_controller.h"
 #include "secrets.h"
 
 // Static IP config
@@ -37,15 +38,16 @@ enum ControlMode {
 };
 
 ControlMode controlMode = AUTO_MODE;
+unsigned long lastAutoCheckMs = 0;
+const unsigned long autoCheckIntervalMs = 2000;
 
 void setup() {
   Serial.begin(9600);
   while (!Serial) {}
 
   pinMode(lightPin, OUTPUT);
-  pinMode(pumpPin, OUTPUT);
   digitalWrite(lightPin, LOW);
-  digitalWrite(pumpPin, LOW);
+  initTopoffController(pumpPin);
 
   Serial.println("Starting...");
 
@@ -79,6 +81,7 @@ void setup() {
 }
 
 void loop() {
+  updateTopoffController(pumpPin);
   handleAutoSchedule();
   handleWebClient();
   updateTemperature();
@@ -88,6 +91,11 @@ void handleAutoSchedule() {
   if (controlMode != AUTO_MODE) {
     return;
   }
+
+  if (millis() - lastAutoCheckMs < autoCheckIntervalMs) {
+    return;
+  }
+  lastAutoCheckMs = millis();
 
   timeClient.update();
 
@@ -148,8 +156,6 @@ void handleAutoSchedule() {
   Serial.print("Temperature: ");
   Serial.print(getCurrentTemperatureF());
   Serial.println(" °F");
-
-  delay(2000);
 }
 
 void handleWebClient() {
@@ -161,93 +167,88 @@ void handleWebClient() {
 
   Serial.println("Client connected");
 
-  String request = client.readStringUntil('\r');
-  Serial.println(request);
+  String requestLine = client.readStringUntil('\r');
+  Serial.println(requestLine);
 
   client.flush();
 
-  
+  String requestPath = extractRequestPath(requestLine);
 
-  if (request.indexOf("/light/currentStatus") != -1) {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: application/json");
-    client.println("Connection: close");
-    client.println();
-    client.print("{\"status\":\"");
-    client.print(currentLightState ? "on" : "off");
-    client.println("\"}");
-
-    delay(3);
-    client.stop();
-    Serial.println("Returned current light status");
-    Serial.println("Client disconnected");
+  if (requestPath == "/light/currentStatus") {
+    writeJsonResponse(
+      client,
+      "{\"status\":\"" + String(currentLightState ? "on" : "off") + "\"}"
+    );
+    closeClient(client, "Returned current light status");
     return;
   }
 
-  else if (request.indexOf("/light/on") != -1) {
+  if (requestPath == "/light/on") {
     controlMode = MANUAL_MODE;
     currentLightState = true;
     digitalWrite(lightPin, HIGH);
-    Serial.println("MANUAL Light ON");
+    writeJsonResponse(client, "{\"ok\":true,\"status\":\"on\",\"mode\":\"manual\"}");
+    closeClient(client, "MANUAL Light ON");
+    return;
   }
-  else if (request.indexOf("/light/off") != -1) {
+
+  if (requestPath == "/light/off") {
     controlMode = MANUAL_MODE;
     currentLightState = false;
     digitalWrite(lightPin, LOW);
-    Serial.println("MANUAL Light OFF");
-  }
-  else if (request.indexOf("/light/auto") != -1) {
-    controlMode = AUTO_MODE;
-    Serial.println("Returned to AUTO mode");
-  }
-  else if (request.indexOf("/temp") != -1) {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: application/json");
-    client.println("Connection: close");
-    client.println();
-
-    client.print("{\"temperature_f\": ");
-    client.print(getCurrentTemperatureF());
-    client.println("}");
-
-    client.stop();
+    writeJsonResponse(client, "{\"ok\":true,\"status\":\"off\",\"mode\":\"manual\"}");
+    closeClient(client, "MANUAL Light OFF");
     return;
   }
-  else if (request.indexOf("/topoff?seconds=") != -1) {
-    float seconds = extractTopoffSeconds(request);
 
-    if (seconds > 0 && seconds <= 5) {
-      Serial.print("Running topoff pump for ");
-      Serial.print(seconds);
-      Serial.println(" seconds");
+  if (requestPath == "/light/auto") {
+    controlMode = AUTO_MODE;
+    writeJsonResponse(client, "{\"ok\":true,\"mode\":\"auto\"}");
+    closeClient(client, "Returned to AUTO mode");
+    return;
+  }
 
-      digitalWrite(pumpPin, HIGH);
-      delay((unsigned long)(seconds * 1000));
-      digitalWrite(pumpPin, LOW);
+  if (requestPath == "/temp") {
+    writeJsonResponse(
+      client,
+      "{\"temperature_f\":" + String(getCurrentTemperatureF(), 2) + "}"
+    );
+    closeClient(client, "Returned temperature");
+    return;
+  }
 
-      client.println("HTTP/1.1 200 OK");
-      client.println("Content-Type: text/plain");
-      client.println("Connection: close");
-      client.println();
-      client.print("Topoff completed in ");
-      client.print(seconds);
-      client.println(" seconds");
+  if (requestPath == "/topoff/status") {
+    writeTopoffStatusResponse(client);
+    closeClient(client, "Returned topoff status");
+    return;
+  }
 
-      delay(3);
-      client.stop();
-      Serial.println("Client disconnected");
+  if (requestPath.startsWith("/topoff/run") || requestPath.startsWith("/topoff?seconds=")) {
+    float seconds = extractTopoffSeconds(requestPath);
+
+    if (!isValidTopoffSeconds(seconds)) {
+      writePlainTextResponse(client, 400, "Invalid topoff seconds");
+      closeClient(client, "Rejected invalid topoff request");
       return;
     }
 
-    client.println("HTTP/1.1 400 Bad Request");
-    client.println("Content-Type: text/plain");
-    client.println("Connection: close");
-    client.println();
-    client.println("Invalid topoff seconds");
+    if (topoffState.active) {
+      writePlainTextResponse(client, 409, "Topoff already running");
+      closeClient(client, "Rejected overlapping topoff request");
+      return;
+    }
 
-    delay(3);
-    client.stop();
-    Serial.println("Client disconnected");
+    startTopoff(pumpPin, seconds);
+
+    Serial.print("Running topoff pump for ");
+    Serial.print(seconds);
+    Serial.println(" seconds");
+
+    writeJsonResponse(
+      client,
+      "{\"ok\":true,\"active\":true,\"requested_seconds\":" + String(seconds, 2) + "}"
+    );
+    closeClient(client, "Accepted topoff request");
     return;
   }
 
@@ -286,25 +287,76 @@ void handleWebClient() {
   client.println("</body>");
   client.println("</html>");
 
-  delay(3);
-  client.stop();
-  Serial.println("Client disconnected");
+  closeClient(client, "Returned control page");
 }
 
-float extractTopoffSeconds(const String& request) {
-  int start = request.indexOf("/topoff?seconds=");
+String extractRequestPath(const String& requestLine) {
+  int firstSpace = requestLine.indexOf(' ');
+  if (firstSpace == -1) {
+    return "";
+  }
+
+  int secondSpace = requestLine.indexOf(' ', firstSpace + 1);
+  if (secondSpace == -1) {
+    return requestLine.substring(firstSpace + 1);
+  }
+
+  return requestLine.substring(firstSpace + 1, secondSpace);
+}
+
+float extractTopoffSeconds(const String& requestPath) {
+  int start = requestPath.indexOf("seconds=");
   if (start == -1) {
     return -1;
   }
 
-  start += 16;
-  int end = request.indexOf(' ', start);
+  start += 8;
+  int end = requestPath.indexOf('&', start);
   if (end == -1) {
-    end = request.length();
+    end = requestPath.length();
   }
 
-  String value = request.substring(start, end);
+  String value = requestPath.substring(start, end);
   return value.toFloat();
+}
+
+void writeJsonResponse(WiFiClient& client, const String& payload) {
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: application/json");
+  client.println("Connection: close");
+  client.println();
+  client.println(payload);
+}
+
+void writePlainTextResponse(WiFiClient& client, int statusCode, const char* message) {
+  client.print("HTTP/1.1 ");
+  client.print(statusCode);
+  client.println(statusCode == 400 ? " Bad Request" : " Conflict");
+  client.println("Content-Type: text/plain");
+  client.println("Connection: close");
+  client.println();
+  client.println(message);
+}
+
+void writeTopoffStatusResponse(WiFiClient& client) {
+  String payload = "{\"active\":";
+  payload += topoffState.active ? "true" : "false";
+  payload += ",\"requested_seconds\":";
+  payload += String(topoffState.requestedSeconds, 2);
+  payload += ",\"last_completed_seconds\":";
+  payload += String(topoffState.lastCompletedSeconds, 2);
+  payload += ",\"remaining_ms\":";
+  payload += String(topoffRemainingMs());
+  payload += "}";
+
+  writeJsonResponse(client, payload);
+}
+
+void closeClient(WiFiClient& client, const char* message) {
+  delay(3);
+  client.stop();
+  Serial.println(message);
+  Serial.println("Client disconnected");
 }
 
 void printCurrentTime() {
